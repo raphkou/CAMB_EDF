@@ -19,6 +19,7 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
+    procedure :: cs2_de
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
@@ -29,15 +30,18 @@
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
+        logical :: use_tabulated_cs2 = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
+    procedure :: SetCs2Table => TDarkEnergyEqnOfState_SetCs2Table
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
+    procedure :: cs2_de => TDarkEnergyEqnOfState_cs2_de
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
@@ -53,6 +57,15 @@
     w_de = -1._dl
 
     end function w_de  ! equation of state of the PPF DE
+
+    function cs2_de(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: cs2_de
+    real(dl), intent(IN) :: a
+
+    cs2_de = 1._dl
+
+    end function cs2_de
 
     function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
@@ -181,6 +194,20 @@
     end subroutine TDarkEnergyEqnOfState_SetwTable
 
 
+    subroutine TDarkEnergyEqnOfState_SetCs2Table(this, a, cs2, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), cs2(n)
+    real(dl), allocatable :: integral(:)
+
+    if (abs(a(size(a)) -1) > 1e-5) error stop 'cs2 table must end at a=1'
+
+    this%use_tabulated_cs2 = .true.
+    call this%sound_speed%Init(log(a), cs2)
+
+    end subroutine TDarkEnergyEqnOfState_SetCs2Table
+
+
     function TDarkEnergyEqnOfState_w_de(this, a)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_w_de, al
@@ -200,6 +227,26 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
+
+    function TDarkEnergyEqnOfState_cs2_de(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_cs2_de, al
+    real(dl), intent(IN) :: a
+
+    if(.not. this%use_tabulated_cs2) then
+        TDarkEnergyEqnOfState_cs2_de= this%cs2_lam
+    else
+        al=dlog(a)
+        if(al <= this%sound_speed%Xmin_interp) then
+            TDarkEnergyEqnOfState_cs2_de= this%sound_speed%F(1)
+        elseif(al >= this%sound_speed%Xmax_interp) then
+            TDarkEnergyEqnOfState_cs2_de= this%sound_speed%F(this%sound_speed%n)
+        else
+            TDarkEnergyEqnOfState_cs2_de = this%sound_speed%Value(al)
+        endif
+    endif
+
+    end function TDarkEnergyEqnOfState_cs2_de
 
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)
@@ -267,6 +314,13 @@
     else
         call File%LoadTxt(Ini%Read_String('wafile'), table)
         call this%SetwTable(table(:,1),table(:,2), size(table(:,1)))
+    endif
+
+    this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
+    this%use_tabulated_cs2 = Ini%Read_Logical('use_tabulated_cs2', .false.)
+    if(this%use_tabulated_cs2)then
+        call File%LoadTxt(Ini%Read_String('cs2file'), table)
+        call this%SetCs2Table(table(:,1),table(:,2), size(table(:,1)))
     endif
 
     end subroutine TDarkEnergyEqnOfState_ReadParams

@@ -19,7 +19,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     """
     Abstract base class for models using w and wa parameterization with use w(a) = w + (1-a)*wa parameterization,
     or call set_w_a_table to set another tabulated w(a). If tabulated w(a) is used, w and wa are set
-    to approximate values at z=0.
+    to approximate values at z=0. The sound speed can also be parameterized as a function of the scale factor
+    through set_cs2_a_table.
 
     See :meth:`.model.CAMBparams.set_initial_power_function` for a convenience constructor function to
     set a general interpolated P(k) model from a python function.
@@ -33,10 +34,14 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
+        ("use_tabulated_cs2", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
     ]
 
-    _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)])]
+    _methods_ = [
+        ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetCs2Table', [numpy_1d, numpy_1d, POINTER(c_int)])
+    ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
         """
@@ -74,6 +79,29 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         w = np.ascontiguousarray(w, dtype=np.float64)
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
+
+        return self
+
+    def set_cs2_a_table(self, a, cs2):
+        """
+        Set cs2(a) from numerical values (used as cublic spline). 
+
+        :param a: array of scale factors
+        :param cs2: array of cs2(a)
+        :return: self
+        """
+        if len(a) != len(cs2):
+            raise ValueError('Dark energy cs2(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):
+            raise ValueError('Dark energy cs2(a) arrays must end at a=1')
+        if np.any(a <= 0):
+            raise ValueError('Dark energy cs2(a) table cannot be set for a<=0')
+
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        cs2 = np.ascontiguousarray(cs2, dtype=np.float64)
+
+        self.f_SetCs2Table(a, cs2, byref(c_int(len(a))))
+
         return self
 
 
@@ -99,6 +127,14 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
             raise ValueError('fluid dark energy model does not support w crossing -1')
         super().set_w_a_table(a, w)
+
+    def set_cs2_a_table(self, a, cs2):
+        # check cs2 array has elements between 0 and 1
+        if np.any(cs2>1):
+            raise ValueError('fluid dark energy model does not support cs2>1')
+        elif np.any(cs2<0):
+            raise ValueError('fluid dark energy model does not support cs2<0')
+        super().set_cs2_a_table(a, cs2)
 
 
 @fortran_class
