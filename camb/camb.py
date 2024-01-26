@@ -29,6 +29,8 @@ def get_results(params):
     :param params: :class:`.model.CAMBparams` instance
     :return: :class:`~.results.CAMBdata` instance
     """
+    if isinstance(params, dict):
+        params = set_params(**params)
     res = CAMBdata()
     if _debug_params:
         print(params)
@@ -118,6 +120,7 @@ def set_params(cp=None, verbose=False, **params):
     * :meth:`.model.CAMBparams.set_accuracy`
     * :meth:`.model.CAMBparams.set_classes`
     * :meth:`.dark_energy.DarkEnergyEqnOfState.set_params` (or equivalent if a different dark energy model class used)
+    * :meth:`.reionization.TanhReionization.set_extra_params` (or equivalent if a different reionization class used)
     * :meth:`.model.CAMBparams.set_cosmology`
     * :meth:`.model.CAMBparams.set_matter_power`
     * :meth:`.model.CAMBparams.set_for_lmax`
@@ -213,7 +216,7 @@ def get_valid_numerical_params(transfer_only=False, **class_names):
     for f, tp in cp._fields_:
         if not f.startswith('_') and tp == ctypes.c_double:
             params.add(f)
-    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff',
+    return params - {'max_eta_k_tensor', 'max_eta_k', 'neutrino_hierarchy', 'standard_neutrino_neff', 'setter_H0',
                      'pivot_scalar', 'pivot_tensor', 'num_massive_neutrinos', 'num_nu_massless', 'bbn_predictor'}
 
 

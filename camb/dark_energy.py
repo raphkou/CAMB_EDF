@@ -104,6 +104,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
         return self
 
+    def __getstate__(self):
+        if self.use_tabulated_w:
+            raise TypeError("Cannot save class with splines")
+        return super().__getstate__()
+
 
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
@@ -203,6 +208,9 @@ class Quintessence(DarkEnergyModel):
         ("__state", f_pointer)
     ]
     _fortran_class_module_ = 'Quintessence'
+
+    def __getstate__(self):
+        raise TypeError("Cannot save class with splines")
 
 
 @fortran_class
