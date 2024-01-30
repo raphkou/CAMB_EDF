@@ -9,6 +9,8 @@
     type, extends(TCambComponent) :: TDarkEnergyModel
         logical :: is_cosmological_constant = .true.
         integer :: num_perturb_equations = 0
+        !Whether we are working with the Dark Fluid model (ie dark matter and dark energy are treated ad a single fluid)
+        logical :: is_df_model = .false.
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -163,9 +165,10 @@
     real(dl), intent(out) :: y(:)
     real(dl), intent(in) :: a, tau, k
     !Get intinitial values for perturbations at a (or tau)
-    !For standard adiabatic perturbations can usually just set to zero to good accuracy
-
-    y = 0
+    if (.not. this%is_df_model) then
+        !For standard adiabatic perturbations can usually just set to zero to good accuracy
+        y = 0
+    endif
 
     end subroutine PerturbationInitial
 
@@ -322,6 +325,8 @@
         call File%LoadTxt(Ini%Read_String('cs2file'), table)
         call this%SetCs2Table(table(:,1),table(:,2), size(table(:,1)))
     endif
+    
+    this%is_df_model = Ini%Read_Logical('is_df_model', .false.)
 
     end subroutine TDarkEnergyEqnOfState_ReadParams
 

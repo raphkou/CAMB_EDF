@@ -468,8 +468,15 @@
         !sigma_T * (number density of protons now)
 
         this%fHe = this%CP%YHe/(mass_ratio_He_H*(1.d0-this%CP%YHe))  !n_He_tot / n_H_tot
-
-        this%z_eq = (this%grhob+this%grhoc)/(this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+        
+        if (.not. this%CP%DarkEnergy%is_df_model) then
+            this%z_eq = (this%grhob+this%grhoc)/&
+                (this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+        else
+            this%z_eq = (this%grhob+this%grhoc+this%grhov)/&
+                (this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+        endif
+        
 
         if (this%CP%omnuh2/=0) then
             !Initialize things for massive neutrinos
@@ -864,8 +871,13 @@
     !$OMP PARALLEL DO DEFAULT(SHARED), private(om, i)
     do i=1, n
         if (tau(i) < this%ThermoData%tauminn*1.1) then
-            om = (this%grhob+this%grhoc)/&
-                sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
+            if (.not. this%CP%DarkEnergy%is_df_model) then
+                om = (this%grhob+this%grhoc)/&
+                    sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
+            else
+                om = (this%grhob+this%grhoc+this%grhov)/&
+                    sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
+            endif
             arr(i) = 1/(this%adotrad*tau(i)*(1+om*tau(i)/4))-1
         else
             arr(i) = 1/this%ThermoData%ScaleFactorAtTime%Value(tau(i))-1
@@ -910,7 +922,11 @@
     real(dl) ombh2, omdmh2
 
     ombh2 = this%CP%ombh2
-    omdmh2 = (this%CP%omch2+this%CP%omnuh2)
+    if (.not. this%CP%DarkEnergy%is_df_model) then
+        omdmh2 = (this%CP%omch2+this%CP%omnuh2)
+    else
+        omdmh2 = (this%CP%omch2+this%CP%omnuh2+this%Omega_de*(this%CP%H0/100)**2)
+    endif
 
     !!From Hu & Sugiyama
     zstar =  1048*(1+0.00124*ombh2**(-0.738))*(1+ &
@@ -1765,8 +1781,13 @@
             end if
         end associate
     end do
-    om = (State%grhob+State%grhoc)/&
-        sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
+    if (.not. State%CP%DarkEnergy%is_df_model) then
+        om = (State%grhob+State%grhoc)/&
+            sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
+    else
+        om = (State%grhob+State%grhoc+State%grhov)/&
+            sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
+    endif
     a0=this%tauminn*State%adotrad*(1+om*this%tauminn/4)
     ninverse = nint(background_boost*log(1/a0)/log(1/2d-10)*4000)
     if (.not. CP%DarkEnergy%is_cosmological_constant) ninverse = ninverse*2
@@ -1802,7 +1823,12 @@
     last_dotmu = 0
 
     this%matter_verydom_tau = 0
-    a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
+    if (.not. State%CP%DarkEnergy%is_df_model) then
+        a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
+    else
+        a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob+State%grhov)
+    endif
+    
     if (CP%Reion%Reionization) then
         call CP%Reion%get_timesteps(State%reion_n_steps, reion_z_start, reion_z_complete)
         State%reion_tau_start = max(0.05_dl, State%TimeOfZ(reion_z_start, 1d-3))

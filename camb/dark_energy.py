@@ -9,7 +9,8 @@ class DarkEnergyModel(F2003Class):
     """
     _fields_ = [
         ("__is_cosmological_constant", c_bool),
-        ("__num_perturb_equations", c_int)]
+        ("__num_perturb_equations", c_int),
+        ("is_df_model", c_bool, "using the Dark Fluid model")]
 
     def validate_params(self):
         return True

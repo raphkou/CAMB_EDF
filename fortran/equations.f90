@@ -1823,13 +1823,23 @@
     x3=x2*x
     rhomass =  sum(State%grhormass(1:CP%Nu_mass_eigenstates))
     grhonu=rhomass+State%grhornomass
+    
+    if (CP%DarkEnergy%is_df_model) then
+        om = (State%grhob+State%grhoc+State%grhov)/sqrt(3*(State%grhog+grhonu))
+    else
+        om = (State%grhob+State%grhoc)/sqrt(3*(State%grhog+grhonu))
+    end if
 
-    om = (State%grhob+State%grhoc)/sqrt(3*(State%grhog+grhonu))
     omtau=om*tau
     Rv=grhonu/(grhonu+State%grhog)
 
     Rg = 1-Rv
-    Rc=CP%omch2/(CP%omch2+CP%ombh2)
+    if (CP%DarkEnergy%is_df_model) then
+        Rc= 1-Cp%ombh2/((CP%h0/100._dl)*(CP%h0/100._dl))
+    else
+        Rc=CP%omch2/(CP%omch2+CP%ombh2)
+    end if
+
     Rb=1-Rc
     Rp15=4*Rv+15
 
@@ -1848,6 +1858,9 @@
     initv(1,i_clxr)= initv(1,i_clxg)
     initv(1,i_clxb)=0.75_dl*initv(1,i_clxg)
     initv(1,i_clxc)=initv(1,i_clxb)
+    if (CP%DarkEnergy%is_df_model) then
+        initv(1,i_clxde)=initv(1,i_clxc)
+    endif
     initv(1,i_qg)=initv(1,i_clxg)*x/9._dl
     initv(1,i_qr)=-chi*EV%Kf(1)*(4*Rv+23)/Rp15*x3/27
     initv(1,i_vb)=0.75_dl*initv(1,i_qg)
