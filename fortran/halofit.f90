@@ -291,7 +291,11 @@
 
                 !!BR09 putting neutrinos into the matter as well, not sure if this is correct, but at least one will get a consisent omk.
                 h2 = (Params%H0/100)**2
-                this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
+                if (.not. Params%DarkEnergy%is_df_model) then
+                    this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
+                else
+                    this%omm0 = (Params%DarkEnergy%omch2_eff+Params%ombh2+Params%omnuh2)/h2
+                end if
                 this%fnu = Params%omnuh2/h2/this%omm0
 
                 CAMB_Pk%nonlin_ratio = 1
@@ -309,8 +313,14 @@
                     ! curvature (rncur) of the power spectrum at the desired redshift, using method
                     ! described in Smith et al (2002).
                     a = 1/real(1+CAMB_Pk%Redshifts(itf),dl)
-                    this%om_m = omega_m(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
-                    this%om_v = omega_v(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                    if (.not. Params%DarkEnergy%is_df_model) then
+                        this%om_m = omega_m(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                        this%om_v = omega_v(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
+                    else
+                        this%om_m = omega_m(a, this%omm0, State%omega_de-Params%omch2/h2, -1.0d0, 0.0d0)
+                        this%om_v = omega_v(a, this%omm0, State%omega_de-Params%omch2/h2, -1.0d0, 0.0d0)
+                    end if
+
                     this%acur = a
                     xlogr1=-2.0
                     xlogr2=3.5
@@ -1041,12 +1051,22 @@
     associate(CP => State%CP)
         !Converts CAMB parameters to Meadfit parameters
         h2 = (CP%H0/100)**2
-        cosm%om_m=(CP%omch2+CP%ombh2+CP%omnuh2)/h2
-        cosm%om_c=CP%omch2/h2
-        cosm%om_b=CP%ombh2/h2
-        cosm%om_nu=CP%omnuh2/h2
-        cosm%om_v=State%omega_de
-        call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
+        if (.not. CP%DarkEnergy%is_df_model) then
+            cosm%om_m=(CP%omch2+CP%ombh2+CP%omnuh2)/h2
+            cosm%om_c=CP%omch2/h2
+            cosm%om_b=CP%ombh2/h2
+            cosm%om_nu=CP%omnuh2/h2
+            cosm%om_v=State%omega_de
+            call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
+        else
+            cosm%om_m=(CP%DarkEnergy%omch2_eff+CP%ombh2+CP%omnuh2)/h2
+            cosm%om_c=CP%DarkEnergy%omch2_eff/h2
+            cosm%om_b=CP%ombh2/h2
+            cosm%om_nu=CP%omnuh2/h2
+            cosm%om_v=State%omega_de-cosm%om_c
+            cosm%w = -1.0d0
+            cosm%wa = 0.0d0
+        end if
         cosm%f_nu=cosm%om_nu/cosm%om_m
         cosm%h=CP%H0/100
         cosm%Tcmb=CP%tcmb
