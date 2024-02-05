@@ -11,6 +11,7 @@
         integer :: num_perturb_equations = 0
         !Whether we are working with the Dark Fluid model (ie dark matter and dark energy are treated ad a single fluid)
         logical :: is_df_model = .false.
+        real(dl) :: omch2_eff = 0.d0
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -169,9 +170,8 @@
         !For standard adiabatic perturbations can usually just set to zero to good accuracy
         y = 0
     endif
-
+    
     end subroutine PerturbationInitial
-
 
     subroutine TDarkEnergyEqnOfState_SetwTable(this, a, w, n)
     class(TDarkEnergyEqnOfState) :: this
@@ -327,6 +327,7 @@
     endif
     
     this%is_df_model = Ini%Read_Logical('is_df_model', .false.)
+    this%omch2_eff = Ini%Read_Double('omch2_eff', 0.d0)
 
     end subroutine TDarkEnergyEqnOfState_ReadParams
 

@@ -1825,17 +1825,17 @@
     grhonu=rhomass+State%grhornomass
     
     if (CP%DarkEnergy%is_df_model) then
-        om = (State%grhob+State%grhoc+State%grhov)/sqrt(3*(State%grhog+grhonu))
+        om = (State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+grhonu))
     else
         om = (State%grhob+State%grhoc)/sqrt(3*(State%grhog+grhonu))
     end if
-
+    
     omtau=om*tau
     Rv=grhonu/(grhonu+State%grhog)
 
     Rg = 1-Rv
     if (CP%DarkEnergy%is_df_model) then
-        Rc= 1-Cp%ombh2/((CP%h0/100._dl)*(CP%h0/100._dl))
+        Rc=CP%DarkEnergy%omch2_eff/(CP%DarkEnergy%omch2_eff+CP%ombh2)
     else
         Rc=CP%omch2/(CP%omch2+CP%ombh2)
     end if
@@ -1859,8 +1859,8 @@
     initv(1,i_clxb)=0.75_dl*initv(1,i_clxg)
     initv(1,i_clxc)=initv(1,i_clxb)
     if (CP%DarkEnergy%is_df_model) then
-        initv(1,i_clxde)=initv(1,i_clxc)
-    endif
+         initv(1,i_clxde)=initv(1,i_clxc)
+     endif
     initv(1,i_qg)=initv(1,i_clxg)*x/9._dl
     initv(1,i_qr)=-chi*EV%Kf(1)*(4*Rv+23)/Rp15*x3/27
     initv(1,i_vb)=0.75_dl*initv(1,i_qg)
@@ -2030,7 +2030,11 @@
     EV%TightSwitchoffTime = min(EV%ThermoData%tight_tau,EV%ThermoData%OpacityToTime(EV%k_buf/ep))
 
     rhomass =  sum(State%grhormass(1:CP%Nu_mass_eigenstates))
-    omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+    if (.not. CP%DarkEnergy%is_df_model) then
+        omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+    else
+        omtau = tau*(State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+    end if
     a=tau*State%adotrad*(1+omtau/4)
 
     if (DoTensorNeutrinos) then
@@ -2087,8 +2091,12 @@
 
     k=EV%k_buf
     k2=EV%k2_buf
-
-    omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+State%grhornomass))
+    
+    if (.not. CP%DarkEnergy%is_df_model) then
+        omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+State%grhornomass))
+    else
+        omtau = tau*(State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+State%grhornomass))
+    end if
 
     a=tau*State%adotrad*(1+omtau/4)
 
@@ -2164,7 +2172,7 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter,grhoc_eff_t
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2172,7 +2180,7 @@
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu, grho_matter_eff, dgrho_matter_eff
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     real(dl) xe,Trad, Delta_TM, Tmat, Delta_TCMB
@@ -2211,6 +2219,10 @@
 
     grhob_t=State%grhob/a
     grhoc_t=State%grhoc/a
+    if (State%CP%DarkEnergy%is_df_model) then
+        grhoc_eff_t=State%grhoc_eff/a
+    end if
+
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
 
@@ -2223,7 +2235,11 @@
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
+
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
+    if (State%CP%DarkEnergy%is_df_model) then
+        dgrho_matter_eff=grhob_t*clxb+grhoc_eff_t*clxc
+    end if
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
 
@@ -2235,6 +2251,9 @@
     end if
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
+    if (State%CP%DarkEnergy%is_df_model) then
+        grho_matter_eff=grhonu_t+grhob_t+grhoc_eff_t
+    end if
     grho = grho_matter+grhor_t+grhog_t+grhov_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
@@ -2709,9 +2728,14 @@
             EV%OutputTransfer(Transfer_g) = clxg
             EV%OutputTransfer(Transfer_r) = clxr
             EV%OutputTransfer(Transfer_nu) = clxnu
-            EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
             EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+            if (.not. State%CP%DarkEnergy%is_df_model) then
+                EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+                EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+            else
+                EV%OutputTransfer(Transfer_tot) =  dgrho_matter_eff/grho_matter_eff !includes neutrinos
+                EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter_eff
+            end if
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
