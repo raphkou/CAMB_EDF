@@ -2267,6 +2267,13 @@
 
     dgrho = dgrho_matter
 
+    if (State%CP%DarkEnergy%is_df_model) then
+        call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
+            a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
+            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
+        dgrho = dgrho + dgrho_de
+    end if
+
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
         !Approximate total density variables with just matter terms
@@ -2314,7 +2321,9 @@
         call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
-        dgrho = dgrho + dgrho_de
+        if (.not. State%CP%DarkEnergy%is_df_model) then
+            dgrho = dgrho + dgrho_de
+        end if
         dgq = dgq + dgq_de
     end if
 
