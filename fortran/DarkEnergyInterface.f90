@@ -22,6 +22,9 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
+    procedure :: w_de_only
+    procedure :: dw_de_da
+    procedure :: dw_de_only_da
     procedure :: cs2_de
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
@@ -36,14 +39,18 @@
         logical :: use_tabulated_cs2 = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed, equation_of_state_de_only
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
+    procedure :: Setw_de_only_Table => TDarkEnergyEqnOfState_Setw_de_only_Table
     procedure :: SetCs2Table => TDarkEnergyEqnOfState_SetCs2Table
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
+    procedure :: w_de_only => TDarkEnergyEqnOfState_w_de_only
+    procedure :: dw_de_da => TDarkEnergyEqnOfState_dw_de_da
+    procedure :: dw_de_only_da => TDarkEnergyEqnOfState_dw_de_only_da
     procedure :: cs2_de => TDarkEnergyEqnOfState_cs2_de
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
@@ -60,6 +67,33 @@
     w_de = -1._dl
 
     end function w_de  ! equation of state of the PPF DE
+    
+    function w_de_only(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: w_de_only, al
+    real(dl), intent(IN) :: a
+
+    w_de_only = -1._dl
+
+    end function w_de_only  ! equation of state of the PPF DE
+    
+    function dw_de_da(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: dw_de_da, al
+    real(dl), intent(IN) :: a
+
+    dw_de_da = -1._dl
+
+    end function dw_de_da  
+    
+    function dw_de_only_da(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: dw_de_only_da, al
+    real(dl), intent(IN) :: a
+
+    dw_de_only_da = -1._dl
+
+    end function dw_de_only_da  
 
     function cs2_de(this, a)
     class(TDarkEnergyModel) :: this
@@ -154,10 +188,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_eff)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_eff
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -195,6 +229,24 @@
     this%wa = -this%equation_of_state%Derivative(0._dl)
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
+    
+    
+    subroutine TDarkEnergyEqnOfState_Setw_de_only_Table(this, a, w, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), w(n)
+    real(dl), allocatable :: integral(:)
+
+    if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
+
+    this%use_tabulated_w = .true.
+    call this%equation_of_state_de_only%Init(log(a), w)
+
+    allocate(integral(this%equation_of_state_de_only%n))
+    ! log (rho) =  -3 int dlna (1+w)
+    call this%equation_of_state_de_only%IntegralArray(integral)
+
+    end subroutine TDarkEnergyEqnOfState_Setw_de_only_Table
 
 
     subroutine TDarkEnergyEqnOfState_SetCs2Table(this, a, cs2, n)
@@ -230,6 +282,47 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
+    
+    function TDarkEnergyEqnOfState_dw_de_da(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_dw_de_da, eps
+    real(dl), intent(IN) :: a
+
+    eps = 0.001_dl
+    TDarkEnergyEqnOfState_dw_de_da = (this%w_de(a*(1._dl+eps))-this%w_de(a*(1._dl-eps)))/(2._dl*a*eps)
+
+    end function TDarkEnergyEqnOfState_dw_de_da
+    
+    
+    function TDarkEnergyEqnOfState_w_de_only(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_w_de_only, al
+    real(dl), intent(IN) :: a
+
+    if(.not. this%use_tabulated_w) then
+        TDarkEnergyEqnOfState_w_de_only= this%w_lam+ this%wa*(1._dl-a)
+    else
+        al=dlog(a)
+        if(al <= this%equation_of_state_de_only%Xmin_interp) then
+            TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_de_only%F(1)
+        elseif(al >= this%equation_of_state%Xmax_interp) then
+            TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_de_only%F(this%equation_of_state_de_only%n)
+        else
+            TDarkEnergyEqnOfState_w_de_only = this%equation_of_state_de_only%Value(al)
+        endif
+    endif
+
+    end function TDarkEnergyEqnOfState_w_de_only  ! equation of state of the PPF DE
+    
+    function TDarkEnergyEqnOfState_dw_de_only_da(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_dw_de_only_da, eps
+    real(dl), intent(IN) :: a
+
+    eps = 0.001_dl
+    TDarkEnergyEqnOfState_dw_de_only_da = (this%w_de_only(a*(1._dl+eps))-this%w_de_only(a*(1._dl-eps)))/(2._dl*a*eps)
+
+    end function TDarkEnergyEqnOfState_dw_de_only_da
 
     function TDarkEnergyEqnOfState_cs2_de(this, a)
     class(TDarkEnergyEqnOfState) :: this

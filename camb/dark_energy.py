@@ -42,6 +42,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetCs2Table', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetW_de_only_Table', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table', [numpy_1d, numpy_1d, POINTER(c_int)])
     ]
 
@@ -83,6 +85,29 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetWTable(a, w, byref(c_int(len(a))))
 
         return self
+    
+    def set_w_de_only_a_table(self, a, w):
+        """
+        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+
+        :param a: array of scale factors
+        :param w: array of w(a)
+        :return: self
+        """
+        if len(a) != len(w):
+            raise ValueError('Dark energy w(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):
+            raise ValueError('Dark energy w(a) arrays must end at a=1')
+        if np.any(a <= 0):
+            raise ValueError('Dark energy w(a) table cannot be set for a<=0')
+
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        w = np.ascontiguousarray(w, dtype=np.float64)
+
+        self.f_SetW_de_only_Table(a, w, byref(c_int(len(a))))
+
+        return self
+
 
     def set_cs2_a_table(self, a, cs2):
         """

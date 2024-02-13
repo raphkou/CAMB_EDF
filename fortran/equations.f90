@@ -1860,7 +1860,7 @@
     initv(1,i_clxc)=initv(1,i_clxb)
     if (CP%DarkEnergy%is_df_model) then
          initv(1,i_clxde)=initv(1,i_clxc)
-     endif
+    endif
     initv(1,i_qg)=initv(1,i_clxg)*x/9._dl
     initv(1,i_qr)=-chi*EV%Kf(1)*(4*Rv+23)/Rp15*x3/27
     initv(1,i_vb)=0.75_dl*initv(1,i_qg)
@@ -2172,11 +2172,11 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter,grhoc_eff_t
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter,grhoc_eff_t, grho_de
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,vde, v_eff
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2194,8 +2194,8 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de
-
+    real(dl) dgrho_de, dgq_de, cs2_de, cs2_eff, cad2_de, cs2_eff_DM, cad2_eff, cs2_eff_approx, cs2_lam, dgrho_de_only
+         
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2215,6 +2215,7 @@
     !  Baryon variables
     clxb=ay(ix_clxb)
     vb=ay(ix_vb)
+
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
@@ -2338,10 +2339,38 @@
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
+    
+    grho_de = grhov_t-grhoc_eff_t
+    v_eff = ay(EV%w_ix + 1)
+    vde = v_eff*grhov_t/grho_de*(1._dl+w_dark_energy_t)/(1._dl+State%CP%DarkEnergy%w_de_only(a))
+    cad2_de = State%CP%DarkEnergy%w_de_only(a)-State%CP%DarkEnergy%dw_de_only_da(a)*a/(3._dl*(1._dl+State%CP%DarkEnergy%w_de_only(a)))
+    cs2_eff_DM = 1._dl/dgrho_de*(State%CP%DarkEnergy%cs2_de(a)*(dgrho_de-grhoc_eff_t*clxc)+3._dl*adotoa*(1._dl+State%CP%DarkEnergy%w_de_only(a)) &
+                * vde/k*grho_de*(State%CP%DarkEnergy%cs2_de(a)-cad2_de))
+    
+    cad2_eff = w_dark_energy_t-a/(3._dl*(1._dl+w_dark_energy_t))*State%CP%DarkEnergy%dw_de_da(a)
+    cs2_eff = (cs2_eff_DM+3._dl*adotoa*(1._dl+w_dark_energy_t)*cad2_eff*v_eff*grhov_t/dgrho_de/k) &
+                / (1._dl+3._dl*adotoa*(1._dl+w_dark_energy_t)*v_eff*grhov_t/dgrho_de/k)
+                
+    if (cs2_eff < 0._dl) then
+        cs2_eff = 0._dl
+    end if
+    cs2_eff_approx = 1._dl-grhoc_eff_t*clxc/dgrho_de
+    
+    cs2_lam = State%CP%DarkEnergy%cs2_de(a)
+    dgrho_de_only = dgrho_de-grhoc_eff_t*clxc
+    
+    !if ((k<0.5_dl .and. k>0.47_dl) .or. (k<0.21_dl .and. k>0.19_dl) .or. (k<0.105_dl .and. k>0.995_dl) &
+    !    .or. (k<0.011_dl .and. k>0.009_dl) .or. (k<0.0011 .and. k>0.0009) .or. (k<0.00011 .and. k>0.00009) &
+    !    .or. (k<0.000011 .and. k>0.000009)) then
+    !    open(1, file = 'cs2_eff.dat', status='old', position="append")
+        !write(1,*) a, k, cs2_eff, cs2_eff_approx, cs2_eff_DM, adotoa, v_eff, vde, cs2_lam, dgrho_de_only, cad2_de, cad2_eff, grho_de, w_dark_energy_t, grhov_t, grhoc_eff_t
+    !    write(1,*) a, k, k*tau, cs2_eff, cad2_eff, w_dark_energy_t, State%CP%DarkEnergy%w_de_only(a), grho_de/grhoc_eff_t
+    !    close(1) 
+    !end if
 
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_eff)
 
     !  CDM equation of motion
     clxcdot=-k*z

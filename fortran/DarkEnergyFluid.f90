@@ -121,15 +121,19 @@
 
 
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_eff)
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_eff
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, loga, cs2_lam
 
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
-    cs2_lam = this%cs2_de(a)
+    if (this%is_df_model) then
+        cs2_lam = cs2_eff
+    else
+        cs2_lam = this%cs2_de(a)
+    end if
     !density perturbation
     ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
         -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
@@ -254,10 +258,10 @@
     end function TAxionEffectiveFluid_grho_de
 
     subroutine TAxionEffectiveFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_eff)
     class(TAxionEffectiveFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_eff
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
