@@ -36,13 +36,15 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
-        ("use_tabulated_cs2", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
+        ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
+        ("use_tabulated_cs2_k", c_bool, "using an interpolated tabulated cs2(k) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
     ]
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetCs2Table', [numpy_1d, numpy_1d, POINTER(c_int)])
+        ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)])
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
@@ -102,7 +104,25 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         a = np.ascontiguousarray(a, dtype=np.float64)
         cs2 = np.ascontiguousarray(cs2, dtype=np.float64)
 
-        self.f_SetCs2Table(a, cs2, byref(c_int(len(a))))
+        self.f_SetCs2Table_a(a, cs2, byref(c_int(len(a))))
+
+        return self
+    
+    def set_cs2_k_table(self, k, cs2):
+        """
+        Set cs2(k) from numerical values (used as cublic spline). 
+
+        :param k: array of wavenumbers
+        :param cs2: array of cs2(k)
+        :return: self
+        """
+        if len(k) != len(cs2):
+            raise ValueError('Dark energy cs2(k) table non-equal sized arrays')
+
+        k = np.ascontiguousarray(k, dtype=np.float64)
+        cs2 = np.ascontiguousarray(cs2, dtype=np.float64)
+
+        self.f_SetCs2Table_k(k, cs2, byref(c_int(len(k))))
 
         return self
 
@@ -142,6 +162,14 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         elif np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_a_table(a, cs2)
+        
+    def set_cs2_k_table(self, k, cs2):
+        # check cs2 array has elements between 0 and 1
+        if np.any(cs2>1):
+            raise ValueError('fluid dark energy model does not support cs2>1')
+        elif np.any(cs2<0):
+            raise ValueError('fluid dark energy model does not support cs2<0')
+        super().set_cs2_k_table(k, cs2)
 
 
 @fortran_class

@@ -2195,6 +2195,9 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
+    !Variables for DF model
+    real(dl) dgrho_exo, grho_exo_t, cs2_eff, cs2_exo, eps, w_exo, dw_DF_da, drho_DF_da, dw_exo_da, drho_exo_da
+    real(dl) cad2_exo, cad2_DF, v_DF_t, v_exo_t, cs2_DF_DM, w_exo_p, w_exo_m, dw_exo
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2339,9 +2342,41 @@
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
 
+    ! Default rest frame DE sound speed
+    cs2_eff = State%CP%DarkEnergy%cs2_de_a(a)*State%CP%DarkEnergy%cs2_de_k(k)
+
+    if (State%CP%DarkEnergy%is_df_model) then
+        ! Exotic dark energy density perturbation
+        dgrho_exo = dgrho_de-grhoc_eff_t*clxc
+        grho_exo_t = grhov_t-grhoc_eff_t
+        cs2_exo  = State%CP%DarkEnergy%cs2_de_a(a)*State%CP%DarkEnergy%cs2_de_k(k)
+        if (grho_exo_t/grhoc_eff_t > 0._dl) then
+            w_exo = grhov_t/grho_exo_t*w_dark_energy_t
+            dw_DF_da = State%CP%DarkEnergy%dw_de_da(a)
+            drho_DF_da = -3._dl*grhov_t*(1._dl+w_dark_energy_t)/a
+            drho_exo_da = -3._dl*grho_exo_t*(1._dl+w_exo)/a
+            dw_exo_da = ((drho_DF_da*w_dark_energy_t+grhov_t*dw_DF_da)*grho_exo_t &
+                        -grhov_t*w_dark_energy_t*drho_exo_da)/(grho_exo_t**2)
+            ! Adiabatic sound speed for exotic dark energy
+            cad2_exo = w_exo-a*dw_exo_da/(3._dl*(1._dl+w_exo))
+            ! Adiabatic sound speed for (total) dark fluid
+            cad2_DF = w_dark_energy_t-a*dw_DF_da/(3._dl*(1._dl+w_dark_energy_t))
+            v_DF_t = ay(EV%w_ix + 1)
+            v_exo_t = v_DF_t*grhov_t/grho_exo_t*(1._dl+w_dark_energy_t)/(1._dl+w_exo)
+            ! (Total) dark fluid sound speed in the DM frame
+            cs2_DF_DM = 1._dl/dgrho_de*(cs2_exo*dgrho_exo+3*adotoa*(1+w_exo)*(cs2_exo-cad2_exo)*v_exo_t/k*grho_exo_t)
+            ! (Total) dark fluid sound speed in its rest frame
+            cs2_eff = (cs2_DF_DM+3._dl*adotoa*(1._dl+w_dark_energy_t)*cad2_DF*v_DF_t/k*grhov_t/dgrho_de) &
+                        / (1._dl+3._dl*adotoa*(1._dl+w_dark_energy_t)*v_DF_t/k*grhov_t/dgrho_de)
+
+        else
+           cs2_eff = 0._dl
+        end if
+    end if
+
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_eff)
 
     !  CDM equation of motion
     clxcdot=-k*z

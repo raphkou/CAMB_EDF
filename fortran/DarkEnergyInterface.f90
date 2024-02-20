@@ -22,7 +22,9 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
-    procedure :: cs2_de
+    procedure :: dw_de_da
+    procedure :: cs2_de_a
+    procedure :: cs2_de_k
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
@@ -33,18 +35,22 @@
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
-        logical :: use_tabulated_cs2 = .false.  !Use interpolated table
+        logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
+        logical :: use_tabulated_cs2_k = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, sound_speed_k
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
-    procedure :: SetCs2Table => TDarkEnergyEqnOfState_SetCs2Table
+    procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
+    procedure :: SetCs2Table_k => TDarkEnergyEqnOfState_SetCs2Table_k
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
-    procedure :: cs2_de => TDarkEnergyEqnOfState_cs2_de
+    procedure :: dw_de_da => TDarkEnergyEqnOfState_dw_de_da
+    procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
+    procedure :: cs2_de_k => TDarkEnergyEqnOfState_cs2_de_k
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
@@ -60,15 +66,33 @@
     w_de = -1._dl
 
     end function w_de  ! equation of state of the PPF DE
-
-    function cs2_de(this, a)
+    
+    function dw_de_da(this, a)
     class(TDarkEnergyModel) :: this
-    real(dl) :: cs2_de
+    real(dl) :: dw_de_da
     real(dl), intent(IN) :: a
 
-    cs2_de = 1._dl
+    dw_de_da = 0._dl
 
-    end function cs2_de
+    end function dw_de_da
+
+    function cs2_de_a(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: cs2_de_a
+    real(dl), intent(IN) :: a
+
+    cs2_de_a = 1._dl
+
+    end function cs2_de_a
+    
+    function cs2_de_k(this, k)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: cs2_de_k
+    real(dl), intent(IN) :: k
+
+    cs2_de_k = 1._dl
+
+    end function cs2_de_k
 
     function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
@@ -154,10 +178,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -197,18 +221,29 @@
     end subroutine TDarkEnergyEqnOfState_SetwTable
 
 
-    subroutine TDarkEnergyEqnOfState_SetCs2Table(this, a, cs2, n)
+    subroutine TDarkEnergyEqnOfState_SetCs2Table_a(this, a, cs2_a, n)
     class(TDarkEnergyEqnOfState) :: this
     integer, intent(in) :: n
-    real(dl), intent(in) :: a(n), cs2(n)
+    real(dl), intent(in) :: a(n), cs2_a(n)
     real(dl), allocatable :: integral(:)
 
     if (abs(a(size(a)) -1) > 1e-5) error stop 'cs2 table must end at a=1'
 
-    this%use_tabulated_cs2 = .true.
-    call this%sound_speed%Init(log(a), cs2)
+    this%use_tabulated_cs2_a = .true.
+    call this%sound_speed_a%Init(log(a), cs2_a)
 
-    end subroutine TDarkEnergyEqnOfState_SetCs2Table
+    end subroutine TDarkEnergyEqnOfState_SetCs2Table_a
+    
+    subroutine TDarkEnergyEqnOfState_SetCs2Table_k(this, k, cs2_k, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: k(n), cs2_k(n)
+    real(dl), allocatable :: integral(:)
+
+    this%use_tabulated_cs2_k = .true.
+    call this%sound_speed_k%Init(log(k), cs2_k)
+
+    end subroutine TDarkEnergyEqnOfState_SetCs2Table_k
 
 
     function TDarkEnergyEqnOfState_w_de(this, a)
@@ -230,26 +265,65 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
-
-    function TDarkEnergyEqnOfState_cs2_de(this, a)
+    
+    function TDarkEnergyEqnOfState_dw_de_da(this, a)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_cs2_de, al
+    real(dl) :: TDarkEnergyEqnOfState_dw_de_da, eps, loga
     real(dl), intent(IN) :: a
 
-    if(.not. this%use_tabulated_cs2) then
-        TDarkEnergyEqnOfState_cs2_de= this%cs2_lam
+    if (.not. this%use_tabulated_w) then
+        eps = 0.001_dl
+        TDarkEnergyEqnOfState_dw_de_da = (this%w_de(a*(1._dl+eps))-this%w_de(a*(1._dl-eps)))/(2._dl*a*eps)
+    else
+        loga = dlog(a)
+        if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
+            TDarkEnergyEqnOfState_dw_de_da = this%equation_of_state%Derivative(loga)
+        else
+            TDarkEnergyEqnOfState_dw_de_da = 0._dl
+        end if
+    end if
+
+    end function TDarkEnergyEqnOfState_dw_de_da
+
+    function TDarkEnergyEqnOfState_cs2_de_a(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_cs2_de_a, al
+    real(dl), intent(IN) :: a
+
+    if(.not. this%use_tabulated_cs2_a) then
+        TDarkEnergyEqnOfState_cs2_de_a= this%cs2_lam
     else
         al=dlog(a)
-        if(al <= this%sound_speed%Xmin_interp) then
-            TDarkEnergyEqnOfState_cs2_de= this%sound_speed%F(1)
-        elseif(al >= this%sound_speed%Xmax_interp) then
-            TDarkEnergyEqnOfState_cs2_de= this%sound_speed%F(this%sound_speed%n)
+        if(al <= this%sound_speed_a%Xmin_interp) then
+            TDarkEnergyEqnOfState_cs2_de_a= this%sound_speed_a%F(1)
+        elseif(al >= this%sound_speed_a%Xmax_interp) then
+            TDarkEnergyEqnOfState_cs2_de_a= this%sound_speed_a%F(this%sound_speed_a%n)
         else
-            TDarkEnergyEqnOfState_cs2_de = this%sound_speed%Value(al)
+            TDarkEnergyEqnOfState_cs2_de_a = this%sound_speed_a%Value(al)
         endif
     endif
 
-    end function TDarkEnergyEqnOfState_cs2_de
+    end function TDarkEnergyEqnOfState_cs2_de_a
+    
+    function TDarkEnergyEqnOfState_cs2_de_k(this, k)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_cs2_de_k, kl
+    real(dl), intent(IN) :: k
+
+    if(.not. this%use_tabulated_cs2_k) then
+        TDarkEnergyEqnOfState_cs2_de_k= 1._dl
+    else
+        kl=dlog(k)
+        if(kl <= this%sound_speed_k%Xmin_interp) then
+            TDarkEnergyEqnOfState_cs2_de_k= this%sound_speed_k%F(1)
+        elseif(kl >= this%sound_speed_k%Xmax_interp) then
+            TDarkEnergyEqnOfState_cs2_de_k= this%sound_speed_k%F(this%sound_speed_k%n)
+        else
+            TDarkEnergyEqnOfState_cs2_de_k = this%sound_speed_k%Value(kl)
+        endif
+    endif
+
+    end function TDarkEnergyEqnOfState_cs2_de_k
 
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)
@@ -320,10 +394,16 @@
     endif
 
     this%cs2_lam = Ini%Read_Double('cs2_lam', 1.d0)
-    this%use_tabulated_cs2 = Ini%Read_Logical('use_tabulated_cs2', .false.)
-    if(this%use_tabulated_cs2)then
-        call File%LoadTxt(Ini%Read_String('cs2file'), table)
-        call this%SetCs2Table(table(:,1),table(:,2), size(table(:,1)))
+    this%use_tabulated_cs2_a = Ini%Read_Logical('use_tabulated_cs2_a', .false.)
+    if(this%use_tabulated_cs2_a)then
+        call File%LoadTxt(Ini%Read_String('cs2file_a'), table)
+        call this%SetCs2Table_a(table(:,1),table(:,2), size(table(:,1)))
+    endif
+    
+    this%use_tabulated_cs2_k = Ini%Read_Logical('use_tabulated_cs2_k', .false.)
+    if(this%use_tabulated_cs2_k)then
+        call File%LoadTxt(Ini%Read_String('cs2file_k'), table)
+        call this%SetCs2Table_a(table(:,1),table(:,2), size(table(:,1)))
     endif
     
     this%is_df_model = Ini%Read_Logical('is_df_model', .false.)

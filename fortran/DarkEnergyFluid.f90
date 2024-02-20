@@ -88,10 +88,17 @@
             ((1+this%w_lam < -1.e-6_dl) .or. 1+this%w_lam + this%wa < -1.e-6_dl)) then
             error stop 'Fluid dark energy model does not allow w crossing -1'
         end if
-        if (this%use_tabulated_cs2) then
-            if (any(this%sound_speed%F<0)) then
+        if (this%use_tabulated_cs2_a) then
+            if (any(this%sound_speed_a%F<0)) then
                 error stop 'Fluid dark energy model does not allow negative cs2'
-            elseif (any(this%sound_speed%F>1)) then
+            elseif (any(this%sound_speed_a%F>1)) then
+                error stop 'Fluid dark energy model does not allow cs2>1'
+            end if
+        end if
+        if (this%use_tabulated_cs2_k) then
+            if (any(this%sound_speed_k%F<0)) then
+                error stop 'Fluid dark energy model does not allow negative cs2'
+            elseif (any(this%sound_speed_k%F>1)) then
                 error stop 'Fluid dark energy model does not allow cs2>1'
             end if
         end if
@@ -121,15 +128,14 @@
 
 
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_lam)
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam
     integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, loga, cs2_lam
+    real(dl) Hv3_over_k, loga
 
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
-    cs2_lam = this%cs2_de(a)
     !density perturbation
     ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
         -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
@@ -254,10 +260,10 @@
     end function TAxionEffectiveFluid_grho_de
 
     subroutine TAxionEffectiveFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_lam)
     class(TAxionEffectiveFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
