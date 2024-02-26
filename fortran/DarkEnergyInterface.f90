@@ -12,6 +12,8 @@
         !Whether we are working with the Dark Fluid model (ie dark matter and dark energy are treated ad a single fluid)
         logical :: is_df_model = .false.
         real(dl) :: omch2_eff = 0.d0
+        real(dl) :: Omega_DE_eff = 0.d0
+        real(dl) :: Omega_c_eff = 0.d0
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -22,9 +24,11 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
-    procedure :: dw_de_da
+    procedure :: w_de_only
+    procedure :: dw_da
     procedure :: cs2_de_a
     procedure :: cs2_de_k
+    procedure :: cs2_de_ktau
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
@@ -37,20 +41,24 @@
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: use_tabulated_cs2_k = .false.  !Use interpolated table
+        logical :: use_tabulated_cs2_ktau = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, sound_speed_k
+        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, logdensity_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: SetCs2Table_k => TDarkEnergyEqnOfState_SetCs2Table_k
+    procedure :: SetCs2Table_ktau => TDarkEnergyEqnOfState_SetCs2Table_ktau
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
-    procedure :: dw_de_da => TDarkEnergyEqnOfState_dw_de_da
+    procedure :: w_de_only => TDarkEnergyEqnOfState_w_de_only
+    procedure :: dw_da => TDarkEnergyEqnOfState_dw_da
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: cs2_de_k => TDarkEnergyEqnOfState_cs2_de_k
+    procedure :: cs2_de_ktau => TDarkEnergyEqnOfState_cs2_de_ktau
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
@@ -67,14 +75,24 @@
 
     end function w_de  ! equation of state of the PPF DE
     
-    function dw_de_da(this, a)
+    function w_de_only(this, a)
     class(TDarkEnergyModel) :: this
-    real(dl) :: dw_de_da
+    real(dl) :: w_de_only, al
     real(dl), intent(IN) :: a
 
-    dw_de_da = 0._dl
+    w_de_only = -1._dl
 
-    end function dw_de_da
+    end function w_de_only
+    
+    function dw_da(this, a, de_only)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: dw_da
+    real(dl), intent(IN) :: a
+    integer, intent(in) :: de_only
+
+    dw_da = 0._dl
+
+    end function dw_da
 
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -93,6 +111,15 @@
     cs2_de_k = 1._dl
 
     end function cs2_de_k
+    
+    function cs2_de_ktau(this, ktau)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: cs2_de_ktau
+    real(dl), intent(IN) :: ktau
+
+    cs2_de_ktau = 1._dl
+
+    end function cs2_de_ktau
 
     function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
@@ -201,22 +228,36 @@
     class(TDarkEnergyEqnOfState) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n), w(n)
-    real(dl), allocatable :: integral(:)
+    real(dl), allocatable :: integral(:), integral_DE_only(:)
 
     if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
 
     this%use_tabulated_w = .true.
-    call this%equation_of_state%Init(log(a), w)
-
-    allocate(integral(this%equation_of_state%n))
-    ! log (rho) =  -3 int dlna (1+w)
-    call this%equation_of_state%IntegralArray(integral)
-    integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
-    integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
-    call this%logdensity%Init(this%equation_of_state%X, integral)
+    if (.not. this%is_df_model) then
+        call this%equation_of_state%Init(log(a), w)
+        allocate(integral(this%equation_of_state%n))
+        ! log (rho) =  -3 int dlna (1+w)
+        call this%equation_of_state%IntegralArray(integral)
+        integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
+        integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
+        call this%logdensity%Init(this%equation_of_state%X, integral)
+    else
+        call this%equation_of_state_DE_only%Init(log(a), w)
+        allocate(integral_DE_only(this%equation_of_state_DE_only%n))
+        allocate(integral(this%equation_of_state_DE_only%n))
+        call this%equation_of_state_DE_only%IntegralArray(integral_DE_only)
+        integral_DE_only  = -3*( (this%equation_of_state_DE_only%X-this%equation_of_state_DE_only%X(1)) &
+            + integral_DE_only) + 4*this%equation_of_state_DE_only%X
+        integral_DE_only = integral_DE_only - integral_DE_only(this%equation_of_state_DE_only%n)
+        call this%logdensity_DE_only%Init(this%equation_of_state_DE_only%X, integral_DE_only)
+        integral = log((this%Omega_DE_eff*exp(integral_DE_only) + this%Omega_c_eff*a)/(this%Omega_DE_eff + this%Omega_c_eff))
+        call this%logdensity%Init(this%equation_of_state_DE_only%X, integral)
+        call this%equation_of_state%Init(log(a), w*this%Omega_DE_eff*exp(integral_DE_only) & 
+            /(this%Omega_DE_eff*exp(integral_DE_only) + this%Omega_c_eff*a))
+    end if
     !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
-    this%w_lam = w(size(a))
-    this%wa = -this%equation_of_state%Derivative(0._dl)
+        this%w_lam = w(size(a))
+        this%wa = -this%equation_of_state%Derivative(0._dl)
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
 
@@ -244,6 +285,17 @@
     call this%sound_speed_k%Init(log(k), cs2_k)
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_k
+    
+    subroutine TDarkEnergyEqnOfState_SetCs2Table_ktau(this, ktau, cs2_ktau, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: ktau(n), cs2_ktau(n)
+    real(dl), allocatable :: integral(:)
+
+    this%use_tabulated_cs2_ktau = .true.
+    call this%sound_speed_ktau%Init(log(ktau), cs2_ktau)
+
+    end subroutine TDarkEnergyEqnOfState_SetCs2Table_ktau
 
 
     function TDarkEnergyEqnOfState_w_de(this, a)
@@ -266,24 +318,44 @@
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
     
-    function TDarkEnergyEqnOfState_dw_de_da(this, a)
+    
+    function TDarkEnergyEqnOfState_w_de_only(this, a)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_dw_de_da, eps, loga
+    real(dl) :: TDarkEnergyEqnOfState_w_de_only, al
     real(dl), intent(IN) :: a
 
-    if (.not. this%use_tabulated_w) then
-        eps = 0.001_dl
-        TDarkEnergyEqnOfState_dw_de_da = (this%w_de(a*(1._dl+eps))-this%w_de(a*(1._dl-eps)))/(2._dl*a*eps)
+    al=dlog(a)
+    if(al <= this%equation_of_state_DE_only%Xmin_interp) then
+        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(1)
+    elseif(al >= this%equation_of_state_DE_only%Xmax_interp) then
+        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(this%equation_of_state_DE_only%n)
     else
-        loga = dlog(a)
-        if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_de_da = this%equation_of_state%Derivative(loga)
+        TDarkEnergyEqnOfState_w_de_only = this%equation_of_state_DE_only%Value(al)
+    endif
+
+    end function TDarkEnergyEqnOfState_w_de_only  ! equation of state of the PPF DE
+    
+    function TDarkEnergyEqnOfState_dw_da(this, a, de_only)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_dw_da, loga
+    real(dl), intent(IN) :: a
+    integer, intent(in) :: de_only !if 1 then DE only, otherwise DE+DM
+    
+    loga = dlog(a)
+    if (de_only == 1) then
+        if (loga > this%equation_of_state_DE_only%Xmin_interp .and. loga < this%equation_of_state_DE_only%Xmax_interp) then
+            TDarkEnergyEqnOfState_dw_da = this%equation_of_state_DE_only%Derivative(loga)
         else
-            TDarkEnergyEqnOfState_dw_de_da = 0._dl
+            TDarkEnergyEqnOfState_dw_da = 0._dl
+        end if
+    else
+        if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
+            TDarkEnergyEqnOfState_dw_da = this%equation_of_state%Derivative(loga)
+        else
+            TDarkEnergyEqnOfState_dw_da = 0._dl
         end if
     end if
-
-    end function TDarkEnergyEqnOfState_dw_de_da
+    end function TDarkEnergyEqnOfState_dw_da
 
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
     class(TDarkEnergyEqnOfState) :: this
@@ -324,6 +396,26 @@
     endif
 
     end function TDarkEnergyEqnOfState_cs2_de_k
+    
+    function TDarkEnergyEqnOfState_cs2_de_ktau(this, ktau)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_cs2_de_ktau, ktaul
+    real(dl), intent(IN) :: ktau
+
+    if(.not. this%use_tabulated_cs2_ktau) then
+        TDarkEnergyEqnOfState_cs2_de_ktau= 1._dl
+    else
+        ktaul=dlog(ktau)
+        if(ktaul <= this%sound_speed_ktau%Xmin_interp) then
+            TDarkEnergyEqnOfState_cs2_de_ktau= this%sound_speed_ktau%F(1)
+        elseif(ktaul >= this%sound_speed_ktau%Xmax_interp) then
+            TDarkEnergyEqnOfState_cs2_de_ktau= this%sound_speed_ktau%F(this%sound_speed_ktau%n)
+        else
+            TDarkEnergyEqnOfState_cs2_de_ktau = this%sound_speed_ktau%Value(ktaul)
+        endif
+    endif
+
+    end function TDarkEnergyEqnOfState_cs2_de_ktau
 
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)
@@ -408,6 +500,8 @@
     
     this%is_df_model = Ini%Read_Logical('is_df_model', .false.)
     this%omch2_eff = Ini%Read_Double('omch2_eff', 0.d0)
+    this%Omega_DE_eff = Ini%Read_Double('Omega_DE_eff', 0.d0)
+    this%Omega_c_eff = Ini%Read_Double('Omega_c_eff', 0.d0)
 
     end subroutine TDarkEnergyEqnOfState_ReadParams
 

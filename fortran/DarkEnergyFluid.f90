@@ -91,15 +91,11 @@
         if (this%use_tabulated_cs2_a) then
             if (any(this%sound_speed_a%F<0)) then
                 error stop 'Fluid dark energy model does not allow negative cs2'
-            elseif (any(this%sound_speed_a%F>1)) then
-                error stop 'Fluid dark energy model does not allow cs2>1'
             end if
         end if
         if (this%use_tabulated_cs2_k) then
             if (any(this%sound_speed_k%F<0)) then
                 error stop 'Fluid dark energy model does not allow negative cs2'
-            elseif (any(this%sound_speed_k%F>1)) then
-                error stop 'Fluid dark energy model does not allow cs2>1'
             end if
         end if
         this%num_perturb_equations = 2

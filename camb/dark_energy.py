@@ -11,7 +11,9 @@ class DarkEnergyModel(F2003Class):
         ("__is_cosmological_constant", c_bool),
         ("__num_perturb_equations", c_int),
         ("is_df_model", c_bool, "using the Dark Fluid model"),
-        ("omch2_eff", c_double)]
+        ("omch2_eff", c_double),
+        ("Omega_DE_eff", c_double),
+        ("Omega_c_eff", c_double)]
 
     def validate_params(self):
         return True
@@ -38,13 +40,15 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("use_tabulated_cs2_k", c_bool, "using an interpolated tabulated cs2(k) rather than cs2 above"),
+        ("use_tabulated_cs2_ktau", c_bool, "using an interpolated tabulated cs2(k*tau) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
     ]
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)])
+        ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)])
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
@@ -125,6 +129,24 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetCs2Table_k(k, cs2, byref(c_int(len(k))))
 
         return self
+    
+    def set_cs2_ktau_table(self, ktau, cs2):
+        """
+        Set cs2(k) from numerical values (used as cublic spline). 
+
+        :param k: array of wavenumbers
+        :param cs2: array of cs2(k)
+        :return: self
+        """
+        if len(ktau) != len(cs2):
+            raise ValueError('Dark energy cs2(k*tau) table non-equal sized arrays')
+
+        ktau = np.ascontiguousarray(ktau, dtype=np.float64)
+        cs2 = np.ascontiguousarray(cs2, dtype=np.float64)
+
+        self.f_SetCs2Table_ktau(ktau, cs2, byref(c_int(len(ktau))))
+
+        return self
 
     def __getstate__(self):
         if self.use_tabulated_w:
@@ -151,25 +173,27 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 
     def set_w_a_table(self, a, w):
         # check w array has elements that are all the same sign or zero
-        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
+        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2 and not self.is_df_model:
             raise ValueError('fluid dark energy model does not support w crossing -1')
         super().set_w_a_table(a, w)
 
     def set_cs2_a_table(self, a, cs2):
-        # check cs2 array has elements between 0 and 1
-        if np.any(cs2>1):
-            raise ValueError('fluid dark energy model does not support cs2>1')
-        elif np.any(cs2<0):
+        # check cs2 array has positive elements
+        if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_a_table(a, cs2)
         
     def set_cs2_k_table(self, k, cs2):
-        # check cs2 array has elements between 0 and 1
-        if np.any(cs2>1):
-            raise ValueError('fluid dark energy model does not support cs2>1')
-        elif np.any(cs2<0):
+        # check cs2 array has positive elements
+        if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_k_table(k, cs2)
+        
+    def set_cs2_k_table(self, ktau, cs2):
+        # check cs2 array has positive elements
+        if np.any(cs2<0):
+            raise ValueError('fluid dark energy model does not support cs2<0')
+        super().set_cs2_ktau_table(ktau, cs2)
 
 
 @fortran_class
