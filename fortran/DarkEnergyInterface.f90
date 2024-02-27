@@ -44,11 +44,12 @@
         logical :: use_tabulated_cs2_ktau = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, logdensity_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau
+        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, rho_DE, sound_speed_a, sound_speed_k, sound_speed_ktau
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
+    procedure :: SetDETable => TDarkEnergyEqnOfState_SetDETable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: SetCs2Table_k => TDarkEnergyEqnOfState_SetCs2Table_k
     procedure :: SetCs2Table_ktau => TDarkEnergyEqnOfState_SetCs2Table_ktau
@@ -228,38 +229,56 @@
     class(TDarkEnergyEqnOfState) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n), w(n)
-    real(dl), allocatable :: integral(:), integral_DE_only(:)
+    real(dl), allocatable :: integral(:)
 
     if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
 
     this%use_tabulated_w = .true.
-    if (.not. this%is_df_model) then
-        call this%equation_of_state%Init(log(a), w)
-        allocate(integral(this%equation_of_state%n))
-        ! log (rho) =  -3 int dlna (1+w)
-        call this%equation_of_state%IntegralArray(integral)
-        integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
-        integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
-        call this%logdensity%Init(this%equation_of_state%X, integral)
-    else
-        call this%equation_of_state_DE_only%Init(log(a), w)
-        allocate(integral_DE_only(this%equation_of_state_DE_only%n))
-        allocate(integral(this%equation_of_state_DE_only%n))
-        call this%equation_of_state_DE_only%IntegralArray(integral_DE_only)
-        integral_DE_only  = -3*( (this%equation_of_state_DE_only%X-this%equation_of_state_DE_only%X(1)) &
-            + integral_DE_only) + 4*this%equation_of_state_DE_only%X
-        integral_DE_only = integral_DE_only - integral_DE_only(this%equation_of_state_DE_only%n)
-        call this%logdensity_DE_only%Init(this%equation_of_state_DE_only%X, integral_DE_only)
-        integral = log((this%Omega_DE_eff*exp(integral_DE_only) + this%Omega_c_eff*a)/(this%Omega_DE_eff + this%Omega_c_eff))
-        call this%logdensity%Init(this%equation_of_state_DE_only%X, integral)
-        call this%equation_of_state%Init(log(a), w*this%Omega_DE_eff*exp(integral_DE_only) & 
-            /(this%Omega_DE_eff*exp(integral_DE_only) + this%Omega_c_eff*a))
-    end if
+    call this%equation_of_state%Init(log(a), w)
+
+    allocate(integral(this%equation_of_state%n))
+    ! log (rho) =  -3 int dlna (1+w)
+    call this%equation_of_state%IntegralArray(integral)
+    integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
+    integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
+    call this%logdensity%Init(this%equation_of_state%X, integral)
     !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
-        this%w_lam = w(size(a))
-        this%wa = -this%equation_of_state%Derivative(0._dl)
+    this%w_lam = w(size(a))
+    this%wa = -this%equation_of_state%Derivative(0._dl)
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
+
+    
+    subroutine TDarkEnergyEqnOfState_SetDETable(this, a, rho_DE, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), rho_DE(n)
+    real(dl), allocatable :: integral(:)
+    real(dl) :: w_DE(n), w(n)
+    integer l
+
+    if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
+    
+    this%use_tabulated_w = .true.
+    call this%rho_DE%Init(log(a), rho_DE)
+    do  l=1,n
+        w_DE(l) = -1._dl-a(l)/3._dl/this%rho_DE%Value(log(a(l)))*this%rho_DE%Derivative(log(a(l)))
+    end do
+    call this%equation_of_state_DE_only%Init(log(a), w_DE)
+    w = rho_DE*w_DE/(rho_DE+this%Omega_c_eff/a**3)
+    call this%equation_of_state%Init(log(a), w)
+    allocate(integral(this%equation_of_state%n))
+    ! log (rho) =  -3 int dlna (1+w)
+    call this%equation_of_state%IntegralArray(integral)
+    integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
+    integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
+    call this%logdensity%Init(this%equation_of_state%X, integral)
+
+    !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
+    this%w_lam = w_DE(size(a))
+    this%wa = -this%equation_of_state_DE_only%Derivative(0._dl)
+
+    end subroutine TDarkEnergyEqnOfState_SetDETable
 
 
     subroutine TDarkEnergyEqnOfState_SetCs2Table_a(this, a, cs2_a, n)
@@ -443,12 +462,20 @@
                 fint= 1
             else
                 al = dlog(a)
-                if(al <= this%logdensity%X(1)) then
-                    ! assume here w=w_de(a_min)
-                    fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1))*(al - this%logdensity%X(1)))
+                if (.not. this%is_df_model) then
+                    if(al <= this%logdensity%X(1)) then
+                        ! assume here w=w_de(a_min)
+                        fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1))*(al - this%logdensity%X(1)))
+                    else
+                        fint = exp(this%logdensity%Value(al))
+                    endif
                 else
-                    fint = exp(this%logdensity%Value(al))
-                endif
+                    if(al <= this%rho_DE%X(1)) then
+                        fint = (this%rho_DE%F(1)*a**4+this%Omega_c_eff*a)/(this%rho_DE%Value(0._dl)+this%Omega_c_eff)
+                    else
+                        fint = (this%rho_DE%Value(al)*a**4+this%Omega_c_eff*a)/(this%rho_DE%Value(0._dl)+this%Omega_c_eff)
+                    end if
+                end if
             end if
             grho_de = fint
         endif

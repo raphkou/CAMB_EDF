@@ -46,9 +46,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetDETable', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)])
+        ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('grho_de', [POINTER(c_double)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
@@ -87,6 +89,28 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         w = np.ascontiguousarray(w, dtype=np.float64)
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
+
+        return self
+    
+    def set_DE_a_table(self, a, Omega_DE):
+        """
+        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+
+        :param a: array of scale factors
+        :param rho_DE: array of Omega_DE(a)
+        :return: self
+        """
+        if len(a) != len(Omega_DE):
+            raise ValueError('Dark energy Omega_DE(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):
+            raise ValueError('Dark energy Omega_DE(a) arrays must end at a=1')
+        if np.any(a <= 0):
+            raise ValueError('Dark energy Omega_DE(a) table cannot be set for a<=0')
+
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        Omega_DE = np.ascontiguousarray(Omega_DE, dtype=np.float64)
+
+        self.f_SetDETable(a, Omega_DE, byref(c_int(len(a))))
 
         return self
 
@@ -173,7 +197,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 
     def set_w_a_table(self, a, w):
         # check w array has elements that are all the same sign or zero
-        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2 and not self.is_df_model:
+        if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
             raise ValueError('fluid dark energy model does not support w crossing -1')
         super().set_w_a_table(a, w)
 
