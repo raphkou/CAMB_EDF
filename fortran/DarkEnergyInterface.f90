@@ -14,6 +14,7 @@
         real(dl) :: omch2_eff = 0.d0
         real(dl) :: Omega_DE_eff = 0.d0
         real(dl) :: Omega_c_eff = 0.d0
+        Type(TCubicSpline) :: rho_DE_pos
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -44,7 +45,7 @@
         logical :: use_tabulated_cs2_ktau = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, rho_DE, sound_speed_a, sound_speed_k, sound_speed_ktau
+        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau, rho_DE
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
@@ -254,17 +255,25 @@
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n), rho_DE(n)
     real(dl), allocatable :: integral(:)
-    real(dl) :: w_DE(n), w(n)
+    real(dl) :: w_DE(n), w(n), w_DE_pos(n), rho_DE_pos(n)
     integer l
 
     if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
     
     this%use_tabulated_w = .true.
     call this%rho_DE%Init(log(a), rho_DE)
-    do  l=1,n
-        w_DE(l) = -1._dl-a(l)/3._dl/this%rho_DE%Value(log(a(l)))*this%rho_DE%Derivative(log(a(l)))
+    do l=1,n
+        w_DE(l) = -1._dl-1._dl/3._dl/this%rho_DE%F(l)*this%rho_DE%Derivative(log(a(l)))
+        if (rho_DE(l) > 0._dl) then
+            w_DE_pos(l) = w_DE(l)
+            rho_DE_pos(l) = rho_DE(l)
+        else
+            w_DE_pos(l) = -1._dl
+            rho_DE_pos(l) = 0._dl
+        end if
     end do
-    call this%equation_of_state_DE_only%Init(log(a), w_DE)
+    call this%equation_of_state_DE_only%Init(log(a), w_DE_pos)
+    call this%rho_DE_pos%Init(log(a), rho_DE_pos)
     w = rho_DE*w_DE/(rho_DE+this%Omega_c_eff/a**3)
     call this%equation_of_state%Init(log(a), w)
     allocate(integral(this%equation_of_state%n))
@@ -276,7 +285,7 @@
 
     !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
     this%w_lam = w_DE(size(a))
-    this%wa = -this%equation_of_state_DE_only%Derivative(0._dl)
+    this%wa = -this%equation_of_state%Derivative(0._dl)
 
     end subroutine TDarkEnergyEqnOfState_SetDETable
 
@@ -363,13 +372,13 @@
     loga = dlog(a)
     if (de_only == 1) then
         if (loga > this%equation_of_state_DE_only%Xmin_interp .and. loga < this%equation_of_state_DE_only%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state_DE_only%Derivative(loga)
+            TDarkEnergyEqnOfState_dw_da = this%equation_of_state_DE_only%Derivative(loga)/a
         else
             TDarkEnergyEqnOfState_dw_da = 0._dl
         end if
     else
         if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state%Derivative(loga)
+            TDarkEnergyEqnOfState_dw_da = this%equation_of_state%Derivative(loga)/a
         else
             TDarkEnergyEqnOfState_dw_da = 0._dl
         end if
