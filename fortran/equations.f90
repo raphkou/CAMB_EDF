@@ -2223,7 +2223,7 @@
     grhob_t=State%grhob/a
     grhoc_t=State%grhoc/a
     if (State%CP%DarkEnergy%is_df_model) then
-        grhoc_eff_t=State%grhoc_eff/a
+        grhoc_eff_t=State%grhocrit*State%CP%DarkEnergy%grho_cdm(a)
     end if
 
     grhor_t=State%grhornomass/a2
@@ -2351,31 +2351,32 @@
         dgrho_DE_only = dgrho_de-grhoc_eff_t*clxc
         grho_DE_only_t = grhov_t-grhoc_eff_t
         cs2_de  = State%CP%DarkEnergy%cs2_de_a(a)*State%CP%DarkEnergy%cs2_de_k(k)*State%CP%DarkEnergy%cs2_de_ktau(k*tau)
-        if (grho_DE_only_t/grhoc_eff_t > 1e-4) then
-            w_DF = w_dark_energy_t
-            w_DE = State%CP%DarkEnergy%w_de_only(a)
-            ! If we've got almost exactly w_DE = -1, then the adiabatic sound speed diverges and we impose cs2_eff = 0
-            !if (abs(w_DE + 1) < 1e-5) then
-            if (abs(w_DE + 1) < 1e-5 .or. abs(w_DE)>1) then
-                cs2_eff = 0._dl
-            else
-                dw_DF_da = State%CP%DarkEnergy%dw_da(a, 0)
-                dw_DE_da = State%CP%DarkEnergy%dw_da(a, 1)
-                ! Adiabatic sound speed for dark energy
-                cad2_DE = w_DE-a*dw_DE_da/(3._dl*(1._dl+w_DE))
-                ! Adiabatic sound speed for (total) dark fluid
-                cad2_DF = w_DF-a*dw_DF_da/(3._dl*(1._dl+w_DF))
-                v_DF_t = ay(EV%w_ix + 1)
-                v_DE_t = v_DF_t*grhov_t/grho_DE_only_t*(1._dl+w_DF)/(1._dl+w_DE)
-                ! (Total) dark fluid sound speed in the DM frame
-                cs2_DF_DM = 1._dl/dgrho_de*(cs2_de*dgrho_DE_only+3*adotoa*(1+w_DE)*(cs2_de-cad2_DE)*v_DE_t/k*grho_DE_only_t)
-                cs2_eff = (cs2_DF_DM+3._dl*adotoa*(1._dl+w_DF)*cad2_DF*v_DF_t/k*grhov_t/dgrho_de) &
-                            / (1._dl+3._dl*adotoa*(1._dl+w_DF)*v_DF_t/k*grhov_t/dgrho_de)
-            end if
+
+        w_DF = w_dark_energy_t
+        w_DE = State%CP%DarkEnergy%w_de_only(a)
+        ! If we've got almost exactly w_DE = -1, then the adiabatic sound speed diverges and we impose cs2_eff = 0
+        !if (abs(w_DE + 1) < 1e-5) then
+        if (abs(w_DE + 1) < 1e-5) then
+            cs2_eff = 0._dl
         else
-           cs2_eff = 0._dl
+            dw_DF_da = State%CP%DarkEnergy%dw_da(a, 0)
+            dw_DE_da = State%CP%DarkEnergy%dw_da(a, 1)
+            ! Adiabatic sound speed for dark energy
+            cad2_DE = w_DE-a*dw_DE_da/(3._dl*(1._dl+w_DE))
+            ! Adiabatic sound speed for (total) dark fluid
+            cad2_DF = w_DF-a*dw_DF_da/(3._dl*(1._dl+w_DF))
+            v_DF_t = ay(EV%w_ix + 1)
+            v_DE_t = v_DF_t*grhov_t/grho_DE_only_t*(1._dl+w_DF)/(1._dl+w_DE)
+            ! (Total) dark fluid sound speed in the DM frame
+            cs2_DF_DM = 1._dl/dgrho_de*(cs2_de*dgrho_DE_only+3*adotoa*(1+w_DE)*(cs2_de-cad2_DE)*v_DE_t/k*grho_DE_only_t)
+            cs2_eff = (cs2_DF_DM+3._dl*adotoa*(1._dl+w_DF)*cad2_DF*v_DF_t/k*grhov_t/dgrho_de) &
+                        / (1._dl+3._dl*adotoa*(1._dl+w_DF)*v_DF_t/k*grhov_t/dgrho_de)
+            !print *, "a = ", a, grhoc_eff_t, grhov_t, grho_DE_only_t, "cs2_de = ", cs2_de, w_DF, w_DE, dw_DF_da, dw_DE_da, "cad2_DE = ", cad2_DE, cad2_DF, v_DF_t, v_DE_t, "cs2_DF_DM = ", cs2_DF_DM, cs2_eff, "dgrho_DE_only = ", dgrho_DE_only, dgrho_de, grhoc_eff_t*clxc
         end if
+        
     end if
+
+!print *, a, cs2_eff
 
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &

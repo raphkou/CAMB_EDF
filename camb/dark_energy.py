@@ -13,7 +13,9 @@ class DarkEnergyModel(F2003Class):
         ("is_df_model", c_bool, "using the Dark Fluid model"),
         ("omch2_eff", c_double),
         ("Omega_DE_eff", c_double),
-        ("Omega_c_eff", c_double)]
+        ("Omega_c_eff", c_double),
+        ("xi", c_double)
+    ]
 
     def validate_params(self):
         return True
@@ -46,11 +48,12 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetDETable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetDeltaTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('grho_de', [POINTER(c_double)], c_double)
+        ('grho_de', [POINTER(c_double)], c_double),
+        ('grho_cdm', [POINTER(c_double)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
@@ -92,25 +95,25 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
         return self
     
-    def set_DE_a_table(self, a, Omega_DE):
+    def set_Delta_a_table(self, a, delta):
         """
-        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+        Set delta(a) from numerical values (used as cublic spline). Note this is quite slow.
 
         :param a: array of scale factors
-        :param rho_DE: array of Omega_DE(a)
+        :param delta: array of delta(a)
         :return: self
         """
-        if len(a) != len(Omega_DE):
-            raise ValueError('Dark energy Omega_DE(a) table non-equal sized arrays')
+        if len(a) != len(delta):
+            raise ValueError('Dark energy delta(a) table non-equal sized arrays')
         if not np.isclose(a[-1], 1):
-            raise ValueError('Dark energy Omega_DE(a) arrays must end at a=1')
+            raise ValueError('Dark energy delta(a) arrays must end at a=1')
         if np.any(a <= 0):
-            raise ValueError('Dark energy Omega_DE(a) table cannot be set for a<=0')
+            raise ValueError('Dark energy delta(a) table cannot be set for a<=0')
 
         a = np.ascontiguousarray(a, dtype=np.float64)
-        Omega_DE = np.ascontiguousarray(Omega_DE, dtype=np.float64)
+        delta = np.ascontiguousarray(delta, dtype=np.float64)
 
-        self.f_SetDETable(a, Omega_DE, byref(c_int(len(a))))
+        self.f_SetDeltaTable(a, delta, byref(c_int(len(a))))
 
         return self
 
