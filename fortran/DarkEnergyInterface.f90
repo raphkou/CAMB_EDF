@@ -496,7 +496,7 @@
                     endif
                 else
                     if(al <= this%rho_DF%X(1)) then
-                        fint = (this%rho_DE%Value(0._dl)*a**4+this%Omega_c_eff*a)/this%rho_DF%Value(0._dl)
+                        fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)/this%rho_DF%Value(0._dl)
                     else
                         fint = this%rho_DF%Value(al)*a**4/this%rho_DF%Value(0._dl)
                     end if
@@ -515,7 +515,7 @@
     
     al = dlog(a)
     if(al <= this%rho_CDM%X(1)) then
-        grho_cdm = this%Omega_c_eff/a
+        grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
     else
         grho_cdm = this%rho_CDM%Value(al)*a**2
     end if

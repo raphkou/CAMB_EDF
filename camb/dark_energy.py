@@ -53,7 +53,9 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('grho_de', [POINTER(c_double)], c_double),
-        ('grho_cdm', [POINTER(c_double)], c_double)
+        ('grho_cdm', [POINTER(c_double)], c_double),
+        ('w_de', [POINTER(c_double)], c_double),
+        ('w_de_only', [POINTER(c_double)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):
