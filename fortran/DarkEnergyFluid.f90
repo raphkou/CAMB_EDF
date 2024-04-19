@@ -207,6 +207,13 @@
             (State%grho_no_de(this%a_c)/this%a_c**4/State%grhocrit + State%Omega_de)/(1 + 1/this%acpow)
         this%omL = State%Omega_de - this%om !Omega_de is total dark energy density today
         this%num_perturb_equations = 2
+        
+        this%is_df_model = .false.
+        this%omch2_eff = 0.d0
+        this%Omega_DE_eff = 0.d0
+        this%Omega_c_eff = 0.d0
+        this%xi = 1._dl
+        
         if (this%w_n < 0.9999) then
             ! n <> infinity
             !get (very) approximate result for sound speed parameter; arXiv:1806.10608  Eq 30 (but mu may not exactly agree with what they used)

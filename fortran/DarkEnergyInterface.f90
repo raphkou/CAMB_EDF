@@ -15,7 +15,6 @@
         real(dl) :: Omega_DE_eff = 0.d0
         real(dl) :: Omega_c_eff = 0.d0
         real(dl) :: xi = 1._dl
-        Type(TCubicSpline) :: rho_DE, rho_CDM, rho_DF
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -48,6 +47,7 @@
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau
+        Type(TCubicSpline) :: rho_DE, rho_CDM, rho_DF
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
@@ -272,9 +272,9 @@
     if (abs(a(size(a)) -1) > 1e-5) error stop 'delta table must end at a=1'
     
     this%use_tabulated_w = .true.
-    call this%rho_DF%Init(log(a), (this%Omega_DE_eff+this%Omega_c_eff/a**3)*(1._dl+delta))
+    call this%rho_DF%Init(log(a), log((this%Omega_DE_eff+this%Omega_c_eff/a**3)*(1._dl+delta)))
     do l=1,n
-        if (abs(delta(l)/this%xi) < 1e-5) then
+        if (abs(delta(l)/this%xi) < 1e-3) then
             fraction_DE = this%xi**2/(2._dl*(this%xi-delta(l)))
             fraction_CDM = -this%xi**2/(2._dl*(this%xi+delta(l)))
         else
@@ -284,11 +284,11 @@
         rho_DE(l) = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_DE
         rho_CDM(l) = this%Omega_c_eff/a(l)**3+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_CDM
     end do
-    call this%rho_DE%Init(log(a), rho_DE)
-    call this%rho_CDM%Init(log(a), rho_CDM)
+    call this%rho_DE%Init(log(a), log(rho_DE))
+    call this%rho_CDM%Init(log(a), log(rho_CDM))
     do l=1,n
-        w_DF(l) = -1._dl-1._dl/3._dl/this%rho_DF%F(l)*this%rho_DF%Derivative(log(a(l)))
-        w_DE(l) = -1._dl-1._dl/3._dl/this%rho_DE%F(l)*this%rho_DE%Derivative(log(a(l)))
+        w_DF(l) = -1._dl-1._dl/3._dl*this%rho_DF%Derivative(log(a(l)))
+        w_DE(l) = -1._dl-1._dl/3._dl*this%rho_DE%Derivative(log(a(l)))
     end do
     call this%equation_of_state%Init(log(a), w_DF)
     call this%equation_of_state_DE_only%Init(log(a), w_DE)
@@ -496,9 +496,9 @@
                     endif
                 else
                     if(al <= this%rho_DF%X(1)) then
-                        fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)/this%rho_DF%Value(0._dl)
+                        fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)/exp(this%rho_DF%Value(0._dl))
                     else
-                        fint = this%rho_DF%Value(al)*a**4/this%rho_DF%Value(0._dl)
+                        fint = exp(this%rho_DF%Value(al))*a**4/exp(this%rho_DF%Value(0._dl))
                     end if
                 end if
             end if
@@ -517,7 +517,7 @@
     if(al <= this%rho_CDM%X(1)) then
         grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
     else
-        grho_cdm = this%rho_CDM%Value(al)*a**2
+        grho_cdm = exp(this%rho_CDM%Value(al))*a**2
     end if
 
     end function TDarkEnergyEqnOfState_grho_cdm

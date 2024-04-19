@@ -55,7 +55,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ('grho_de', [POINTER(c_double)], c_double),
         ('grho_cdm', [POINTER(c_double)], c_double),
         ('w_de', [POINTER(c_double)], c_double),
-        ('w_de_only', [POINTER(c_double)], c_double)
+        ('w_de_only', [POINTER(c_double)], c_double),
+        ('dw_da', [POINTER(c_double), POINTER(c_int)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0):

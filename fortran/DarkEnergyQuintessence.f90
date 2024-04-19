@@ -127,6 +127,11 @@
     this%num_perturb_equations = 2
 
     this%log_astart = log(this%astart)
+    this%is_df_model = .false.
+    this%omch2_eff = 0.d0
+    this%Omega_DE_eff = 0.d0
+    this%Omega_c_eff = 0.d0
+    this%xi = 1._dl
 
     end subroutine  TQuintessence_Init
 
