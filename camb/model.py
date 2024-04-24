@@ -8,7 +8,7 @@ from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
-from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
+from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_DF_model
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
@@ -432,7 +432,8 @@ class CAMBparams(F2003Class):
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
                       tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
-                      theta_H0_range=(10, 100), setter_H0=None):
+                      theta_H0_range=(10, 100), setter_H0=None, 
+                      is_df_model=False, omch2_eff=None, amp_delta=None, amp_cs2=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -525,12 +526,22 @@ class CAMBparams(F2003Class):
                                     byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
                                     byref(c_int(int(num_massive_neutrinos))))
 
+        if omch2_eff is not None:
+            self.omch2_eff = omch2_eff
+            
+        if amp_delta is not None:
+            self.amp_delta = amp_delta
+            
+        if amp_cs2 is not None:
+            self.amp_cs2 = amp_cs2
+
         if cosmomc_theta or thetastar:
             if H0 is not None:
                 raise CAMBError('Set H0=None when setting theta.')
             if cosmomc_theta and thetastar:
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
-
+            if is_df_model and setter_H0 is None:
+                setter_H0 = update_DF_model
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
         else:
