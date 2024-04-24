@@ -2371,12 +2371,8 @@
             cs2_DF_DM = 1._dl/dgrho_de*(cs2_de*dgrho_DE_only+3*adotoa*(1+w_DE)*(cs2_de-cad2_DE)*v_DE_t/k*grho_DE_only_t)
             cs2_eff = (cs2_DF_DM+3._dl*adotoa*(1._dl+w_DF)*cad2_DF*v_DF_t/k*grhov_t/dgrho_de) &
                         / (1._dl+3._dl*adotoa*(1._dl+w_DF)*v_DF_t/k*grhov_t/dgrho_de)
-            !print *, "a = ", a, grhoc_eff_t, grhov_t, grho_DE_only_t, "cs2_de = ", cs2_de, w_DF, w_DE, dw_DF_da, dw_DE_da, "cad2_DE = ", cad2_DE, cad2_DF, v_DF_t, v_DE_t, "cs2_DF_DM = ", cs2_DF_DM, cs2_eff, "dgrho_DE_only = ", dgrho_DE_only, dgrho_de, grhoc_eff_t*clxc
-        end if
-        
+        end if    
     end if
-
-!print *, a, cs2_eff
 
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
