@@ -62,7 +62,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0,
                    is_df_model=False, omch2_eff=0, ombh2=0, H0=67, xi=1,
-                   amp_delta=None, amp_cs2=None):
+                   amp_delta=None, amp_cs2=None, pars=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -83,26 +83,31 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             self.xi = xi
             
             folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-            self.eigenvectors_delta = np.load(folder+"eigenvectors_delta_50.npy")
-            self.eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2_50.npy")
-            self.a_edges = np.load(folder+"a_edges.npy")
+            eigenvectors_delta = np.load(folder+"eigenvectors_delta_50.npy")
+            eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2_50.npy")
+            a_edges = np.load(folder+"a_edges.npy")
             
-            delta = self.eigenvectors_delta[:,0:len(amp_delta)]@amp_delta
-            delta_spline = CubicSpline(self.a_edges,delta)
-            self.a = np.logspace(-6,0,200)
-            self.delta_a = delta_spline(self.a)
-            ind = np.where(self.a>5e-3)
-            self.delta_a[ind[0]] = self.delta_a[ind[0][0]]
-            self.delta_a *= np.exp(-(self.a/5e-3)**2)
+            delta = eigenvectors_delta[:,0:len(amp_delta)]@amp_delta
+            delta_spline = CubicSpline(a_edges,delta)
             
-            log_cs2 = self.eigenvectors_cs2[:,0:len(amp_cs2)]@amp_cs2
-            log_cs2_spline = CubicSpline(self.a_edges,log_cs2)
-            log_cs2_a = log_cs2_spline(self.a)
+            a = np.logspace(-6,0,200)
+            delta = delta_spline(a)
+            ind = np.where(a>5e-3)
+            delta[ind[0]] = delta[ind[0][0]]
+            delta *= np.exp(-(a/5e-3)**2)*(1-np.exp(-(a/2e-5)**2))
+            
+            log_cs2 = eigenvectors_cs2[:,0:len(amp_cs2)]@amp_cs2
+            log_cs2_spline = CubicSpline(a_edges,log_cs2)
+            log_cs2_a = log_cs2_spline(a)
             log_cs2_a[ind[0]] = log_cs2_a[ind[0][0]]
-            cs2_a = 10**log_cs2_a*np.exp(-(self.a/5e-3)**2)
+            cs2_a = 10**log_cs2_a*np.exp(-(a/5e-3)**2)*(1-np.exp(-(a/2e-5)**2))
             
-            self.set_Delta_a_table(self.a, self.delta_a)
-            self.set_cs2_a_table(self.a, cs2_a)
+            self.set_Delta_a_table(a, delta)
+            self.set_cs2_a_table(a, cs2_a)
+            
+            if pars is not None:
+                pars.DF_a = a
+                pars.DF_delta = delta
     
 
     def validate_params(self):
@@ -221,19 +226,7 @@ def update_DF_model(pars, H0):
     pars.DarkEnergy.omch2_eff = pars.omch2_eff
     pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
     pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2)/(H0/100)**2
-    folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-    eigenvectors_delta = np.load(folder+"eigenvectors_delta_50.npy")
-    eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2_50.npy")
-    a_edges = np.load(folder+"a_edges.npy")
-    a = np.logspace(-6,0,200)
-    amp_delta = np.array(pars.amp_delta)
-    delta = eigenvectors_delta[:,0:len(amp_delta)]@amp_delta
-    delta_spline = CubicSpline(a_edges,delta)
-    delta_a = delta_spline(a)
-    ind = np.where(a>5e-3)
-    delta_a[ind[0]] = delta_a[ind[0][0]]
-    delta_a *= np.exp(-(a/5e-3)**2)
-    pars.DarkEnergy.set_Delta_a_table(a, delta_a)
+    pars.DarkEnergy.set_Delta_a_table(pars.DF_a, pars.DF_delta)
     pars.H0 = H0
 
 
