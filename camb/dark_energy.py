@@ -301,7 +301,7 @@ class AxionEffectiveFluid(DarkEnergyModel):
     _fortran_class_name_ = 'TAxionEffectiveFluid'
     _fortran_class_module_ = 'DarkEnergyFluid'
 
-    def set_params(self, w_n, fde_zc, zc, theta_i=None):
+    def set_params(self, w_n, fde_zc, zc, theta_i=None, pars=None):
         self.w_n = w_n
         self.fde_zc = fde_zc
         self.zc = zc
