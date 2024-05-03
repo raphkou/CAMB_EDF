@@ -26,12 +26,15 @@
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: w_de_only
-    procedure :: dw_da
+    procedure :: dw_de
     procedure :: cs2_de_a
     procedure :: cs2_de_k
     procedure :: cs2_de_ktau
     procedure :: grho_de
     procedure :: grho_cdm
+    procedure :: eval_delta
+    procedure :: eval_ddelta
+    procedure :: eval_dddelta
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
 
@@ -40,6 +43,11 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
+        integer :: n_loga = 0
+        integer :: n_sigma = 0
+        real(dl), dimension (:), allocatable :: loga 
+        real(dl), dimension (:), allocatable :: sigma 
+        real(dl), dimension (:), allocatable :: delta 
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: use_tabulated_cs2_k = .false.  !Use interpolated table
@@ -47,7 +55,6 @@
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau
-        Type(TCubicSpline) :: rho_DE, rho_CDM, rho_DF
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
@@ -59,13 +66,16 @@
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: w_de_only => TDarkEnergyEqnOfState_w_de_only
-    procedure :: dw_da => TDarkEnergyEqnOfState_dw_da
+    procedure :: dw_de => TDarkEnergyEqnOfState_dw_de
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: cs2_de_k => TDarkEnergyEqnOfState_cs2_de_k
     procedure :: cs2_de_ktau => TDarkEnergyEqnOfState_cs2_de_ktau
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: grho_cdm => TDarkEnergyEqnOfState_grho_cdm
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
+    Procedure :: eval_delta => TDarkEnergyEqnOfState_eval_delta
+    Procedure :: eval_ddelta => TDarkEnergyEqnOfState_eval_ddelta
+    Procedure :: eval_dddelta => TDarkEnergyEqnOfState_eval_dddelta
     end type TDarkEnergyEqnOfState
 
     public TDarkEnergyModel, TDarkEnergyEqnOfState
@@ -89,15 +99,42 @@
 
     end function w_de_only
     
-    function dw_da(this, a, de_only)
+    function dw_de(this, a, de_only)
     class(TDarkEnergyModel) :: this
-    real(dl) :: dw_da
+    real(dl) :: dw_de
     real(dl), intent(IN) :: a
     integer, intent(in) :: de_only
 
-    dw_da = 0._dl
+    dw_de = 0._dl
 
-    end function dw_da
+    end function dw_de
+    
+    function eval_delta(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: eval_delta
+    real(dl), intent(IN) :: a
+
+    eval_delta = 0._dl
+
+    end function eval_delta
+    
+    function eval_ddelta(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: eval_ddelta
+    real(dl), intent(IN) :: a
+
+    eval_ddelta = 0._dl
+
+    end function eval_ddelta
+    
+    function eval_dddelta(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: eval_dddelta
+    real(dl), intent(IN) :: a
+
+    eval_dddelta = 0._dl
+
+    end function eval_dddelta
 
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -261,49 +298,80 @@
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
     
-    subroutine TDarkEnergyEqnOfState_SetDeltaTable(this, a, delta, n)
+    subroutine TDarkEnergyEqnOfState_SetDeltaTable(this, loga, sigma, delta, n_loga, n_sigma)
     class(TDarkEnergyEqnOfState) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n), delta(n)
-    real(dl), allocatable :: integral(:)
-    real(dl) :: w_DF(n), w_DE(n), rho_DE(n), rho_CDM(n), fraction_DE, fraction_CDM
-    integer l
-
-    if (abs(a(size(a)) -1) > 1e-5) error stop 'delta table must end at a=1'
+    integer, intent(in) :: n_loga, n_sigma
+    real(dl), intent(in) :: loga(n_loga), sigma(n_sigma), delta(n_loga*n_sigma)
+    real(dl) :: step
+    integer i
     
-    this%use_tabulated_w = .true.
-    call this%rho_DF%Init(log(a), log((this%Omega_DE_eff+this%Omega_c_eff/a**3)*(1._dl+delta)))
-    do l=1,n
-        if (abs(delta(l)/this%xi) < 1e-3) then
-            fraction_DE = this%xi**2/(2._dl*(this%xi-delta(l)))
-            fraction_CDM = -this%xi**2/(2._dl*(this%xi+delta(l)))
-        else
-            fraction_DE = delta(l)/(1._dl-exp(-2._dl*delta(l)/this%xi))
-            fraction_CDM = delta(l)/(1._dl-exp(2._dl*delta(l)/this%xi))
-        end if
-        rho_DE(l) = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_DE
-        rho_CDM(l) = this%Omega_c_eff/a(l)**3+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_CDM
-    end do
-    call this%rho_DE%Init(log(a), log(rho_DE))
-    call this%rho_CDM%Init(log(a), log(rho_CDM))
-    do l=1,n
-        w_DF(l) = -1._dl-1._dl/3._dl*this%rho_DF%Derivative(log(a(l)))
-        w_DE(l) = -1._dl-1._dl/3._dl*this%rho_DE%Derivative(log(a(l)))
-    end do
-    call this%equation_of_state%Init(log(a), w_DF)
-    call this%equation_of_state_DE_only%Init(log(a), w_DE)
-    allocate(integral(this%equation_of_state%n))
-    ! log (rho) =  -3 int dlna (1+w)
-    call this%equation_of_state%IntegralArray(integral)
-    integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
-    integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
-    call this%logdensity%Init(this%equation_of_state%X, integral)
-
-    !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
-    this%w_lam = w_DF(size(a))
-    this%wa = -this%equation_of_state%Derivative(0._dl)
-
+    !this%use_tabulated_w = .true.
+    
+    !allocate(this%loga(n_loga))
+    this%loga = loga
+    this%sigma = sigma
+    this%n_loga = n_loga
+    this%n_sigma = n_sigma
+    this%delta = delta
+    
     end subroutine TDarkEnergyEqnOfState_SetDeltaTable
+    
+    function TDarkEnergyEqnOfState_eval_delta(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_eval_delta, loga
+    integer :: i, j, ind
+    
+    loga = log10(a)
+    TDarkEnergyEqnOfState_eval_delta = 0._dl
+    do i=1,this%n_sigma
+        do j=1,this%n_loga
+            ind = (i-1)*this%n_loga+j
+            TDarkEnergyEqnOfState_eval_delta = TDarkEnergyEqnOfState_eval_delta + this%delta(ind)*exp(-0.5_dl*(loga-this%loga(j))**2/this%sigma(i)**2)
+        end do
+    end do
+
+    end function TDarkEnergyEqnOfState_eval_delta
+    
+    ! Evaluate d(delta)/dlog(a)
+    function TDarkEnergyEqnOfState_eval_ddelta(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_eval_ddelta, loga
+    integer :: i, j, ind
+    
+    loga = log10(a)
+    TDarkEnergyEqnOfState_eval_ddelta = 0._dl
+    do i=1,this%n_sigma
+        do j=1,this%n_loga
+            ind = (i-1)*this%n_loga+j
+            TDarkEnergyEqnOfState_eval_ddelta = TDarkEnergyEqnOfState_eval_ddelta - this%delta(ind)/this%sigma(i)**2*(loga-this%loga(j))*exp(-0.5_dl*(loga-this%loga(j))**2/this%sigma(i)**2)
+        end do
+    end do
+    
+    TDarkEnergyEqnOfState_eval_ddelta = TDarkEnergyEqnOfState_eval_ddelta*log(10._dl)
+
+    end function TDarkEnergyEqnOfState_eval_ddelta
+    
+    ! Evaluate d^2(delta)/dlog(a)^2
+    function TDarkEnergyEqnOfState_eval_dddelta(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_eval_dddelta, loga
+    integer :: i, j, ind
+    
+    loga = log10(a)
+    TDarkEnergyEqnOfState_eval_dddelta = 0._dl
+    do i=1,this%n_sigma
+        do j=1,this%n_loga
+            ind = (i-1)*this%n_loga+j
+            TDarkEnergyEqnOfState_eval_dddelta = TDarkEnergyEqnOfState_eval_dddelta - this%delta(ind)/this%sigma(i)**2*(1._dl-(loga-this%loga(j))**2/this%sigma(i)**2)*exp(-0.5_dl*(loga-this%loga(j))**2/this%sigma(i)**2)
+        end do
+    end do
+    
+    TDarkEnergyEqnOfState_eval_dddelta = TDarkEnergyEqnOfState_eval_dddelta*log(10._dl)**2
+
+    end function TDarkEnergyEqnOfState_eval_dddelta
 
 
     subroutine TDarkEnergyEqnOfState_SetCs2Table_a(this, a, cs2_a, n)
@@ -344,62 +412,60 @@
 
     function TDarkEnergyEqnOfState_w_de(this, a)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_w_de, al
+    real(dl) :: TDarkEnergyEqnOfState_w_de, delta_a, ddelta_a
     real(dl), intent(IN) :: a
 
-    if(.not. this%use_tabulated_w) then
+    if(.not. this%use_tabulated_w .and. .not. this%is_df_model) then
         TDarkEnergyEqnOfState_w_de= this%w_lam+ this%wa*(1._dl-a)
     else
-        al=dlog(a)
-        if(al <= this%equation_of_state%Xmin_interp) then
-            TDarkEnergyEqnOfState_w_de= this%equation_of_state%F(1)
-        elseif(al >= this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_w_de= this%equation_of_state%F(this%equation_of_state%n)
-        else
-            TDarkEnergyEqnOfState_w_de = this%equation_of_state%Value(al)
-        endif
+        delta_a = this%eval_delta(a)
+        ddelta_a = this%eval_ddelta(a)
+        TDarkEnergyEqnOfState_w_de = -this%Omega_DE_eff/(this%Omega_DE_eff+this%Omega_c_eff/a**3)-1._dl/(3._dl*(1._dl+delta_a))*ddelta_a
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
-    
-    
+
     function TDarkEnergyEqnOfState_w_de_only(this, a)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_w_de_only, al
+    real(dl) :: TDarkEnergyEqnOfState_w_de_only, rho_DE, delta_a, ddelta_a, denom
     real(dl), intent(IN) :: a
-
-    al=dlog(a)
-    if(al <= this%equation_of_state_DE_only%Xmin_interp) then
-        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(1)
-    elseif(al >= this%equation_of_state_DE_only%Xmax_interp) then
-        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(this%equation_of_state_DE_only%n)
+    
+    delta_a = this%eval_delta(a)
+    if (delta_a/this%xi>1e-3) then
+        ddelta_a = this%eval_ddelta(a)
+        rho_DE = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a**3)*delta_a/(1._dl-exp(-2*delta_a/this%xi))
+        denom = 1-exp(-2*delta_a/this%xi)
+        TDarkEnergyEqnOfState_w_de_only = -1._dl-1._dl/(3._dl*rho_DE)/denom**2*(-3*this%Omega_c_eff/a**3*delta_a*denom+(this%Omega_DE_eff+this%Omega_c_eff/a**3)*ddelta_a*(denom-2._dl/this%xi*delta_a))
     else
-        TDarkEnergyEqnOfState_w_de_only = this%equation_of_state_DE_only%Value(al)
-    endif
+        TDarkEnergyEqnOfState_w_de_only = -1._dl+this%xi*this%Omega_c_eff/a**3/(2._dl*this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a**3)*this%xi)
+    end if
 
     end function TDarkEnergyEqnOfState_w_de_only  ! equation of state of the PPF DE
     
-    function TDarkEnergyEqnOfState_dw_da(this, a, de_only)
+    function TDarkEnergyEqnOfState_dw_de(this, a, de_only)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_dw_da, loga
+    real(dl) :: TDarkEnergyEqnOfState_dw_de, delta_a, ddelta_a, dddelta_a, w_de, rho_DE, denom, Om_c_a, Om_DF_a
     real(dl), intent(IN) :: a
     integer, intent(in) :: de_only !if 1 then DE only, otherwise DF
     
-    loga = dlog(a)
+    delta_a = this%eval_delta(a)
+    ddelta_a = this%eval_ddelta(a)
+    dddelta_a = this%eval_dddelta(a)
+        
     if (de_only == 1) then
-        if (loga > this%equation_of_state_DE_only%Xmin_interp .and. loga < this%equation_of_state_DE_only%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state_DE_only%Derivative(loga)/a
+        w_de = this%w_de_only(a)
+        rho_DE = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a**3)*delta_a/(1._dl-exp(-2*delta_a/this%xi))
+        if (delta_a/this%xi>1e-3) then
+            Om_c_a = this%Omega_c_eff/a**3
+            Om_DF_a = this%Omega_DE_eff+Om_c_a
+            TDarkEnergyEqnOfState_dw_de = 3*(1._dl+w_de)**2-1._dl/(3._dl*rho_DE*denom)*(12._dl/this%xi*rho_DE*(1._dl+w_de)*ddelta_a*exp(-2*delta_a/this%xi)+9._dl*Om_c_a*delta_a-6._dl*Om_c_a*ddelta_a+6._dl/this%xi*Om_c_a*delta_a*ddelta_a+Om_DF_a*dddelta_a-Om_DF_a*2._dl/this%xi*ddelta_a**2-Om_DF_a*2._dl/this%xi*delta_a*dddelta_a/denom)
         else
-            TDarkEnergyEqnOfState_dw_da = 0._dl
+            TDarkEnergyEqnOfState_dw_de = -3._dl*this%xi*this%Omega_DE_eff*this%Omega_c_eff/a**3*(2._dl+this%xi)/(2*this%Omega_DE_eff+this%xi*(this%Omega_DE_eff+this%Omega_c_eff/a**3))**2
         end if
     else
-        if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state%Derivative(loga)/a
-        else
-            TDarkEnergyEqnOfState_dw_da = 0._dl
-        end if
+        TDarkEnergyEqnOfState_dw_de = -3*this%Omega_DE_eff*this%Omega_c_eff/a**3/(this%Omega_DE_eff+this%Omega_c_eff/a**3)**2-1._dl/3._dl/(1+delta_a)**2*(dddelta_a*(1+delta_a)-ddelta_a**2)
     end if
-    end function TDarkEnergyEqnOfState_dw_da
+    end function TDarkEnergyEqnOfState_dw_de
 
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
     class(TDarkEnergyEqnOfState) :: this
@@ -476,7 +542,7 @@
     real(dl) :: grho_de, al, fint
     real(dl), intent(IN) :: a
 
-    if(.not. this%use_tabulated_w) then
+    if(.not. this%use_tabulated_w .and. .not. this%is_df_model) then
         grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
         if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
     else
@@ -495,11 +561,7 @@
                         fint = exp(this%logdensity%Value(al))
                     endif
                 else
-                    if(al <= this%rho_DF%X(1)) then
-                        fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)/exp(this%rho_DF%Value(0._dl))
-                    else
-                        fint = exp(this%rho_DF%Value(al))*a**4/exp(this%rho_DF%Value(0._dl))
-                    end if
+                    fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)*(1+this%eval_delta(a))/((this%Omega_c_eff+this%Omega_DE_eff)*(1+this%eval_delta(1._dl)))
                 end if
             end if
             grho_de = fint
@@ -510,14 +572,15 @@
     
     function TDarkEnergyEqnOfState_grho_cdm(this, a) result(grho_cdm)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: grho_cdm, al, fint
+    real(dl) :: grho_cdm, al, fint, delta_a
     real(dl), intent(IN) :: a
     
-    al = dlog(a)
-    if(al <= this%rho_CDM%X(1)) then
-        grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
+    delta_a = this%eval_delta(a)
+    if (delta_a/this%xi<1e-3) then
+        grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_DE_eff*a**2+this%Omega_c_eff/a)
+  
     else
-        grho_cdm = exp(this%rho_CDM%Value(al))*a**2
+        grho_cdm = this%Omega_c_eff/a+(this%Omega_DE_eff*a**2+this%Omega_c_eff/a)*delta_a/(1-exp(2*delta_a/this%xi))
     end if
 
     end function TDarkEnergyEqnOfState_grho_cdm
@@ -578,7 +641,7 @@
     class(TCAMBdata), intent(in), target :: State
 
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
-        &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
+        &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl .and. .not. this%is_df_model
 
     end subroutine TDarkEnergyEqnOfState_Init
 

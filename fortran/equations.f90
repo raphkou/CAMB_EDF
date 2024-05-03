@@ -2196,7 +2196,7 @@
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
     !Variables for DF model
-    real(dl) dgrho_DE_only, grho_DE_only_t, cs2_eff, eps, w_DE, dw_DF_da, drho_DF_da, dw_DE_da, drho_exo_da
+    real(dl) dgrho_DE_only, grho_DE_only_t, cs2_eff, eps, w_DE, dw_DF, drho_DF_da, dw_DE, drho_exo_da
     real(dl) cad2_DE, cad2_DF, v_DF_t, v_DE_t, cs2_DF_DM, w_exo_p, w_exo_m, dw_exo, w_DF
      
     k=EV%k_buf
@@ -2359,12 +2359,12 @@
         if (abs(w_DE + 1) < 1e-5) then
             cs2_eff = 0._dl
         else
-            dw_DF_da = State%CP%DarkEnergy%dw_da(a, 0)
-            dw_DE_da = State%CP%DarkEnergy%dw_da(a, 1)
+            dw_DF = State%CP%DarkEnergy%dw_de(a, 0)
+            dw_DE = State%CP%DarkEnergy%dw_de(a, 1)
             ! Adiabatic sound speed for dark energy
-            cad2_DE = w_DE-a*dw_DE_da/(3._dl*(1._dl+w_DE))
+            cad2_DE = w_DE-dw_DE/(3._dl*(1._dl+w_DE))
             ! Adiabatic sound speed for (total) dark fluid
-            cad2_DF = w_DF-a*dw_DF_da/(3._dl*(1._dl+w_DF))
+            cad2_DF = w_DF-dw_DF/(3._dl*(1._dl+w_DF))
             v_DF_t = ay(EV%w_ix + 1)
             v_DE_t = v_DF_t*grhov_t/grho_DE_only_t*(1._dl+w_DF)/(1._dl+w_DE)
             ! (Total) dark fluid sound speed in the DM frame

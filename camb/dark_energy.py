@@ -49,7 +49,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetDeltaTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+        ('SetDeltaTable', [numpy_1d, numpy_1d, numpy_1d, POINTER(c_int), POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
@@ -57,7 +57,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ('grho_cdm', [POINTER(c_double)], c_double),
         ('w_de', [POINTER(c_double)], c_double),
         ('w_de_only', [POINTER(c_double)], c_double),
-        ('dw_da', [POINTER(c_double), POINTER(c_int)], c_double)
+        ('eval_delta', [POINTER(c_double)], c_double),
+        ('eval_ddelta', [POINTER(c_double)], c_double),
+        ('eval_dddelta', [POINTER(c_double)], c_double),
+        ('dw_de', [POINTER(c_double), POINTER(c_int)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0,
@@ -136,27 +139,17 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
         return self
     
-    def set_Delta_a_table(self, a, delta):
-        """
-        Set delta(a) from numerical values (used as cublic spline). Note this is quite slow.
 
-        :param a: array of scale factors
-        :param delta: array of delta(a)
-        :return: self
-        """
-        if len(a) != len(delta):
-            raise ValueError('Dark energy delta(a) table non-equal sized arrays')
-        if not np.isclose(a[-1], 1):
-            raise ValueError('Dark energy delta(a) arrays must end at a=1')
-        if np.any(a <= 0):
-            raise ValueError('Dark energy delta(a) table cannot be set for a<=0')
-
-        a = np.ascontiguousarray(a, dtype=np.float64)
+    def set_Delta_a_table(self, loga, sigma, delta):
+        
+        loga = np.ascontiguousarray(loga, dtype=np.float64)
+        sigma = np.ascontiguousarray(sigma, dtype=np.float64)
         delta = np.ascontiguousarray(delta, dtype=np.float64)
 
-        self.f_SetDeltaTable(a, delta, byref(c_int(len(a))))
+        self.f_SetDeltaTable(loga, sigma, delta, byref(c_int(len(loga))), byref(c_int(len(sigma))))
 
         return self
+
 
     def set_cs2_a_table(self, a, cs2):
         """
