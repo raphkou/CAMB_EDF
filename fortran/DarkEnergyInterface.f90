@@ -40,6 +40,7 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
+        real(dl) :: delta_max = 0._dl
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: use_tabulated_cs2_k = .false.  !Use interpolated table
@@ -273,16 +274,23 @@
     
     this%use_tabulated_w = .true.
     call this%rho_DF%Init(log(a), log((this%Omega_DE_eff+this%Omega_c_eff/a**3)*(1._dl+delta)))
+    this%delta_max = maxval(abs(delta))
+    
     do l=1,n
-        if (abs(delta(l)/this%xi) < 1e-3) then
-            fraction_DE = this%xi**2/(2._dl*(this%xi-delta(l)))
-            fraction_CDM = -this%xi**2/(2._dl*(this%xi+delta(l)))
+        if (this%delta_max == 0) then
+        rho_DE(l) = this%Omega_DE_eff
+        rho_CDM(l) = this%Omega_c_eff/a(l)**3
         else
-            fraction_DE = delta(l)/(1._dl-exp(-2._dl*delta(l)/this%xi))
-            fraction_CDM = delta(l)/(1._dl-exp(2._dl*delta(l)/this%xi))
+            if (abs(delta(l)/this%xi/this%delta_max) < 1e-3) then
+                fraction_DE = this%xi*this%delta_max
+                fraction_CDM = -this%xi*this%delta_max
+            else
+                fraction_DE = delta(l)/(1._dl-exp(-delta(l)/this%xi/this%delta_max))
+                fraction_CDM = delta(l)/(1._dl-exp(delta(l)/this%xi/this%delta_max))
+            end if
+            rho_DE(l) = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_DE
+            rho_CDM(l) = this%Omega_c_eff/a(l)**3+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_CDM
         end if
-        rho_DE(l) = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_DE
-        rho_CDM(l) = this%Omega_c_eff/a(l)**3+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_CDM
     end do
     call this%rho_DE%Init(log(a), log(rho_DE))
     call this%rho_CDM%Init(log(a), log(rho_CDM))
@@ -514,12 +522,15 @@
     real(dl), intent(IN) :: a
     
     al = dlog(a)
-    if(al <= this%rho_CDM%X(1)) then
-        grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
+    if (this%delta_max == 0) then
+        grho_cdm = this%Omega_c_eff/a
     else
-        grho_cdm = exp(this%rho_CDM%Value(al))*a**2
+        if(al <= this%rho_CDM%X(1)) then
+            grho_cdm = this%Omega_c_eff/a-this%xi*this%delta_max*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
+        else
+            grho_cdm = exp(this%rho_CDM%Value(al))*a**2
+        end if
     end if
-
     end function TDarkEnergyEqnOfState_grho_cdm
 
     subroutine TDarkEnergyEqnOfState_PrintFeedback(this, FeedbackLevel)
