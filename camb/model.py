@@ -8,7 +8,7 @@ from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
-from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_DF_model
+from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_DF_model, update_DE_Moss_model
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
@@ -542,6 +542,8 @@ class CAMBparams(F2003Class):
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
             if is_df_model and setter_H0 is None:
                 setter_H0 = update_DF_model
+            elif amp_delta is not None and setter_H0 is None:
+                setter_H0 = update_DE_Moss_model
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
         else:

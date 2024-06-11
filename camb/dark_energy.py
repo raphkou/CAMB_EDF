@@ -70,10 +70,47 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         :param wa: -dw/da(0)
         :param cs2: fluid rest-frame sound speed squared
         """
+        
         self.w = w
         self.wa = wa
         self.cs2 = cs2
         self.validate_params()
+        
+        if (is_df_model == False and amp_delta is not None):
+            folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
+            modes = np.load(folder+"Modes_Moss_pos.npy")
+            a_i = np.load(folder+"a_i_Moss_pos.npy")
+            Omega_i = amp_delta@modes[0:len(amp_delta)]
+            
+            pars.Omega_i = Omega_i
+            pars.a_i = a_i
+            
+            Omega_m = pars.omegam
+            G = 6.67430e-11
+            kappa = 8*np.pi*G
+            c = 2.99792458e8
+            sigma_boltz = 5.670374419e-8
+            Mpc = 3.085677581e22
+            Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(pars.H0*1e3)**2)*c**2
+            Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
+            Omega_r = Omega_g+Omega_neutrino
+            Omega_Lambda = 1-Omega_m-Omega_r
+            
+            a = np.logspace(-7,0,250)
+            beta = 6
+            Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
+            a_vec = np.expand_dims(a,1)
+            Omega_Moss_i = Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
+            Omega_DE = Omega_Lambda + np.sum(Omega_Moss_i, axis=1)
+            
+            ln_Omega_DE = np.log(Omega_DE)
+            ln_a = np.log(a)
+            dln_Omega_DE = ln_Omega_DE[1:]-ln_Omega_DE[0:-1]
+            dln_a = ln_a[1:]-ln_a[0:-1]
+            w_DE = -1.-1./3.*dln_Omega_DE/dln_a
+            w_DE = np.append(w_DE, w_DE[-1])
+            
+            self.set_w_a_table(a,w_DE)
         
         if (is_df_model == True):
             self.is_df_model = True
@@ -83,8 +120,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             self.xi = xi
             
             folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-            eigenvectors_delta = np.load(folder+"eigenvectors_delta.npy")
-            eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2.npy")
+            eigenvectors_delta = np.load(folder+"eigenvectors_delta_50_xi_0.1.npy")
+            eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2_50_xi_0.1.npy")
             a_i = np.load(folder+"a_i.npy")
             
             a = np.expand_dims(np.logspace(-7,0,250),1)
@@ -104,6 +141,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             if pars is not None:
                 pars.DF_a = a
                 pars.DF_delta = delta
+                pars.DF_cs2 = cs2
     
 
     def validate_params(self):
@@ -223,6 +261,35 @@ def update_DF_model(pars, H0):
     pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
     pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2)/(H0/100)**2
     pars.DarkEnergy.set_Delta_a_table(pars.DF_a, pars.DF_delta)
+    pars.H0 = H0
+    
+def update_DE_Moss_model(pars, H0):
+    Omega_m = (pars.omch2+pars.ombh2)/(H0/100)**2
+    G = 6.67430e-11
+    kappa = 8*np.pi*G
+    c = 2.99792458e8
+    sigma_boltz = 5.670374419e-8
+    Mpc = 3.085677581e22
+    Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
+    Omega_neutrino = 7./8*(4./11)**(4./3)*grhog*pars.N_eff/(3*(H0*1e3)**2)*c**2
+    Omega_r = Omega_g+Omega_neutrino
+    Omega_Lambda = 1-Omega_m-Omega_r
+
+    a = np.logspace(-7,0,250)
+    beta = 6
+    Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
+    a_vec = np.expand_dims(a,1)
+    Omega_Moss_i = pars.Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
+    Omega_DE = Omega_Lambda + np.sum(Omega_Moss_i, axis=1)
+
+    ln_Omega_DE = np.log(Omega_DE)
+    ln_a = np.log(a)
+    dln_Omega_DE = ln_Omega_DE[1:]-ln_Omega_DE[0:-1]
+    dln_a = ln_a[1:]-ln_a[0:-1]
+    w_DE = -1.-1./3.*dln_Omega_DE/dln_a
+    w_DE = np.append(w_DE, w_DE[-1])
+
+    pars.DarkEnergy.set_w_a_table(a,w_DE)
     pars.H0 = H0
 
 
