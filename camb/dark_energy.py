@@ -78,7 +78,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         
         if (is_df_model == False and amp_delta is not None):
             folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-            modes = np.load(folder+"Modes_Moss_pos.npy")
+            modes = np.load(folder+"Modes_Moss_pos_unlensed.npy")
             a_i = np.load(folder+"a_i_Moss_pos.npy")
             Omega_i = amp_delta@modes[0:len(amp_delta)]
             
@@ -111,6 +111,14 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             w_DE = np.append(w_DE, w_DE[-1])
             
             self.set_w_a_table(a,w_DE)
+            
+            if amp_cs2 is not None:
+                eigenvectors_cs2 = np.load(folder+"eigenvectors_Moss_pos_unlensed_cs2.npy")
+                
+                a_i_cs2 = np.append(a_i,1)
+                cs2_tot = cs2*np.ones(len(a_i_cs2))
+                cs2_tot[0:-1] += amp_cs2@eigenvectors_cs2[0:len(amp_cs2)]
+                self.set_cs2_a_table(a_i_cs2,cs2_tot)
         
         if (is_df_model == True):
             self.is_df_model = True
@@ -271,15 +279,15 @@ def update_DE_Moss_model(pars, H0):
     sigma_boltz = 5.670374419e-8
     Mpc = 3.085677581e22
     Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
-    Omega_neutrino = 7./8*(4./11)**(4./3)*grhog*pars.N_eff/(3*(H0*1e3)**2)*c**2
+    Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
     Omega_r = Omega_g+Omega_neutrino
     Omega_Lambda = 1-Omega_m-Omega_r
 
     a = np.logspace(-7,0,250)
     beta = 6
-    Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
+    Omega_lcdm_i = Omega_m/pars.a_i**3+Omega_r/pars.a_i**4+Omega_Lambda
     a_vec = np.expand_dims(a,1)
-    Omega_Moss_i = pars.Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
+    Omega_Moss_i = pars.Omega_i*Omega_lcdm_i*(2*pars.a_i**beta/(a_vec**beta+pars.a_i**beta))**(6/beta)
     Omega_DE = Omega_Lambda + np.sum(Omega_Moss_i, axis=1)
 
     ln_Omega_DE = np.log(Omega_DE)
