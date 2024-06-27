@@ -144,19 +144,22 @@ def set_params(cp=None, verbose=False, **params):
 
     used_params = set()
 
-    def do_set(setter):
+    def do_set(setter, pars=None):
         kwargs = {kk: params[kk] for kk in getfullargspec(setter).args[1:] if kk in params}
         used_params.update(kwargs)
         if kwargs:
             if verbose:
                 logging.warning('Calling %s(**%s)' % (setter.__name__, kwargs))
-            setter(**kwargs)
+            if pars is not None:
+                setter(**kwargs,pars=pars)
+            else:
+                setter(**kwargs)
 
     # Note order is important: must call DarkEnergy.set_params before set_cosmology if setting theta rather than H0
     # set_classes allows redefinition of the classes used, so must be called before setting class parameters
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
-    do_set(cp.DarkEnergy.set_params)
+    do_set(cp.DarkEnergy.set_params, cp)
     do_set(cp.Reion.set_extra_params)
     do_set(cp.set_cosmology)
     do_set(cp.set_matter_power)

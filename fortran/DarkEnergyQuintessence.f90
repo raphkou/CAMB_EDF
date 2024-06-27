@@ -235,10 +235,10 @@
     end subroutine ValsAta
 
     subroutine TQuintessence_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix, dgpie)
     !Get density perturbation and heat flux
     class(TQuintessence), intent(inout) :: this
-    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(out) :: dgrhoe, dgqe, dgpie
     real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
@@ -250,16 +250,17 @@
     vq=ay(w_ix+1)
     dgrhoe= phidot*vq +clxq*a**2*this%Vofphi(phi,1)
     dgqe= k*phidot*clxq
+    dgpie=0
 
     end subroutine TQuintessence_PerturbedStressEnergy
 
 
     subroutine TQuintessence_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_lam, sigma)
     !Get conformal time derivatives of the density perturbation and velocity
     class(TQuintessence), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, sigma
     integer, intent(in) :: w_ix
     real(dl) clxq, vq, phi, phidot
 

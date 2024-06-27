@@ -99,9 +99,9 @@
 
 
     subroutine TDarkEnergyPPF_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix, dgpie)
     class(TDarkEnergyPPF), intent(inout) :: this
-    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(out) :: dgrhoe, dgqe, dgpie
     real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
@@ -144,6 +144,7 @@
     dgqe = S_Gamma - Gammadot / adotoa - Gamma
     dgqe = -dgqe / Fa * 2._dl * k * adotoa + vT * grhov_t * (1 + w)
     dgrhoe = -2 * k2 * kf1 * Gamma - 3 / k * adotoa * dgqe
+    dgpie = 0
 
     end subroutine TDarkEnergyPPF_PerturbedStressEnergy
 

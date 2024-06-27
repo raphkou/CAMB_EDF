@@ -19,6 +19,7 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
+    procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
@@ -28,16 +29,20 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
+        real(dl) :: cvis2 = 0._dl !Dark energy viscosity
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
+        logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
+    procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
+    procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
@@ -53,6 +58,15 @@
     w_de = -1._dl
 
     end function w_de  ! equation of state of the PPF DE
+    
+    function cs2_de_a(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: cs2_de_a
+    real(dl), intent(IN) :: a
+
+    cs2_de_a = 1._dl
+
+    end function cs2_de_a
 
     function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
@@ -110,9 +124,9 @@
 
 
     subroutine PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
+        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix, dgpie)
     class(TDarkEnergyModel), intent(inout) :: this
-    real(dl), intent(out) :: dgrhoe, dgqe
+    real(dl), intent(out) :: dgrhoe, dgqe, dgpie
     real(dl), intent(in) ::  a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
     real(dl), intent(in) :: ay(*)
     real(dl), intent(inout) :: ayprime(*)
@@ -120,6 +134,7 @@
 
     dgrhoe=0
     dgqe=0
+    dgpie=0
 
     end subroutine PerturbedStressEnergy
 
@@ -138,10 +153,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, sigma)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, sigma
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -180,6 +195,18 @@
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
 
+    
+    subroutine TDarkEnergyEqnOfState_SetCs2Table_a(this, a, cs2_a, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), cs2_a(n)
+    real(dl), allocatable :: integral(:)
+
+    this%use_tabulated_cs2_a = .true.
+    call this%sound_speed_a%Init(log(a), cs2_a)
+
+    end subroutine TDarkEnergyEqnOfState_SetCs2Table_a
+
 
     function TDarkEnergyEqnOfState_w_de(this, a)
     class(TDarkEnergyEqnOfState) :: this
@@ -200,6 +227,27 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
+
+    
+    function TDarkEnergyEqnOfState_cs2_de_a(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_cs2_de_a, al
+    real(dl), intent(IN) :: a
+
+    if(.not. this%use_tabulated_cs2_a) then
+        TDarkEnergyEqnOfState_cs2_de_a= this%cs2_lam
+    else
+        al=dlog(a)
+        if(al <= this%sound_speed_a%Xmin_interp) then
+            TDarkEnergyEqnOfState_cs2_de_a= this%sound_speed_a%F(1)
+        elseif(al >= this%sound_speed_a%Xmax_interp) then
+            TDarkEnergyEqnOfState_cs2_de_a= this%sound_speed_a%F(this%sound_speed_a%n)
+        else
+            TDarkEnergyEqnOfState_cs2_de_a = this%sound_speed_a%Value(al)
+        endif
+    endif
+
+    end function TDarkEnergyEqnOfState_cs2_de_a
 
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)

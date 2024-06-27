@@ -2162,7 +2162,7 @@
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu, dgpi_de
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     real(dl) xe,Trad, Delta_TM, Tmat, Delta_TCMB
@@ -2176,7 +2176,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de
+    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2284,7 +2284,7 @@
     if (.not. EV%is_cosmological_constant) then
         call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
             a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
-            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
+            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix, dgpi_de)
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de
     end if
@@ -2301,9 +2301,11 @@
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
 
+    cs2_lam = State%CP%DarkEnergy%cs2_de_a(a)
+    
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, sigma)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2675,9 +2677,10 @@
         if (EV%is_cosmological_constant) then
             dgrho_de=0
             dgq_de=0
+            dgpi_de=0
         end if
 
-        dgpi  = grhor_t*pir + grhog_t*pig
+        dgpi  = grhor_t*pir + grhog_t*pig + dgpi_de
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
         pidot_sum = grhog_t*pigdot + grhor_t*pirdot
         clxnu =0
