@@ -259,7 +259,7 @@
                 CEE(l) =  highL_CL_template(l, C_E)*fac2 *sc
                 CTE(l) =  highL_CL_template(l, C_Cross)*fac2*sc
                 if (Cphil3(CP%Max_l+1) > 1e-7) then
-                    call MpiStop('You need to normalize the high-L template so it is dimensionless')
+                    call AmplitudeError()
                 end if
             end do
         end if

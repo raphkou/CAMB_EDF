@@ -8,7 +8,7 @@ from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
-from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState
+from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_DE
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
@@ -432,7 +432,7 @@ class CAMBparams(F2003Class):
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
                       tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
-                      theta_H0_range=(10, 100), setter_H0=None):
+                      theta_H0_range=(40, 100), setter_H0=None, amp_delta=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -524,13 +524,16 @@ class CAMBparams(F2003Class):
                                     byref(c_double(nnu)),
                                     byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
                                     byref(c_int(int(num_massive_neutrinos))))
+        if amp_delta is not None:
+            self.amp_delta = amp_delta
 
         if cosmomc_theta or thetastar:
             if H0 is not None:
                 raise CAMBError('Set H0=None when setting theta.')
             if cosmomc_theta and thetastar:
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
-
+            if amp_delta is not None and setter_H0 is None:
+                setter_H0 = update_DE
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
         else:
@@ -539,6 +542,8 @@ class CAMBparams(F2003Class):
             if H0 < 1:
                 raise CAMBValueError('H0 is the value in km/s/Mpc, your value looks very small')
             self.H0 = H0
+            if amp_delta is not None:
+                update_DE(self, H0)
 
         if tau is not None:
             if zrei is not None:

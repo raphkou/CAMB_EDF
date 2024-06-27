@@ -2176,7 +2176,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de
+    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2301,9 +2301,11 @@
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
 
+    cs2_lam = State%CP%DarkEnergy%cs2_de_a(a)
+    
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
 
     !  CDM equation of motion
     clxcdot=-k*z

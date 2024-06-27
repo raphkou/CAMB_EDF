@@ -113,18 +113,17 @@
     end if
     end subroutine TDarkEnergyFluid_PerturbedStressEnergy
 
-
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_lam)
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, loga
 
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (this%cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
+    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
         -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
     if (this%use_tabulated_w) then
         !account for derivatives of w
@@ -137,8 +136,8 @@
     end if
     !velocity
     if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * this%cs2_lam) * y(w_ix + 1) + &
-            k * this%cs2_lam * y(w_ix) / (1 + w)
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
+            k * cs2_lam * y(w_ix) / (1 + w)
     else
         ayprime(w_ix + 1) = 0
     end if
@@ -247,10 +246,10 @@
     end function TAxionEffectiveFluid_grho_de
 
     subroutine TAxionEffectiveFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y)
+        a, adotoa, k, z, y, cs2_lam)
     class(TAxionEffectiveFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:)
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
