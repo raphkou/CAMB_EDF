@@ -30,6 +30,7 @@
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         real(dl) :: cvis2 = 0._dl !Dark energy viscosity
+        real(dl) :: R_c = 1._dl !cf https://arxiv.org/pdf/1605.00649
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
@@ -140,10 +141,10 @@
 
 
     function diff_rhopi_Add_Term(this, dgrhoe, dgqe,grho, gpres, w, grhok, adotoa, &
-        Kf1, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
+        Kf1, k, grhov_t, z, k2, yprime, y, w_ix, a, sigma, cothxor, dgpie) result(ppiedot)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, grhok, w, adotoa, &
-        k, grhov_t, z, k2, yprime(:), y(:), Kf1
+        k, grhov_t, z, k2, yprime(:), y(:), Kf1, a, sigma, cothxor, dgpie
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot
 
@@ -153,10 +154,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, sigma)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, sigma, cothxor, grhok)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, sigma
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, sigma, cothxor, grhok
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 

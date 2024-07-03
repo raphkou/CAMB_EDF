@@ -76,11 +76,11 @@
 
 
     function TDarkEnergyPPF_diff_rhopi_Add_Term(this, dgrhoe, dgqe, grho, gpres, w,  grhok, adotoa, &
-        Kf1, k, grhov_t, z, k2, yprime, y, w_ix) result(ppiedot)
+        Kf1, k, grhov_t, z, k2, yprime, y, w_ix, a, sigma, cothxor, dgpie) result(ppiedot)
     !Get derivative of anisotropic stress
     class(TDarkEnergyPPF), intent(in) :: this
     real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, w, grhok, adotoa, &
-        k, grhov_t, z, k2, yprime(:), y(:), Kf1
+        k, grhov_t, z, k2, yprime(:), y(:), Kf1, a, sigma, cothxor, dgpie
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot, hdotoh
 

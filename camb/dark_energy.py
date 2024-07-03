@@ -32,6 +32,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("cvis2", c_double, "viscosity"),
+        ("R_c", c_double),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
@@ -40,7 +41,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, cvis2=0.0, pars=None, amp_delta=None, cs2_1=None, cs2_2=None):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, cvis2=0.0, R_c=1.0, pars=None, amp_delta=None, cs2_1=None, cs2_2=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -52,6 +53,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.wa = wa
         self.cs2 = cs2
         self.cvis2 = cvis2
+        self.R_c = R_c
         self.validate_params()
         
         if (amp_delta is not None):
