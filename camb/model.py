@@ -524,6 +524,8 @@ class CAMBparams(F2003Class):
                                     byref(c_double(nnu)),
                                     byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
                                     byref(c_int(int(num_massive_neutrinos))))
+        if amp_delta is not None:
+            self.amp_delta = amp_delta
 
         if cosmomc_theta or thetastar:
             if H0 is not None:

@@ -1,6 +1,11 @@
 from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, \
     AllocatableArrayDouble, f_pointer
 from ctypes import c_int, c_double, byref, POINTER, c_bool
+from camb.constants import kappa, c, sigma_boltz, Mpc
+
+folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
+modes = np.load(folder+"Modes_Moss_pos_unlensed.npy")
+a_i = np.load(folder+"a_i_Moss_pos.npy")
 
 class DarkEnergyModel(F2003Class):
     """
@@ -41,7 +46,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, cvis2=0.0, R_c=1.0, pars=None, amp_delta=None, cs2_1=None, cs2_2=None):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, cvis2=0.0, R_c=1.0, cs2_1=None, cs2_2=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -55,47 +60,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.cvis2 = cvis2
         self.R_c = R_c
         self.validate_params()
-        
-        if (amp_delta is not None):
-            folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-            modes = np.load(folder+"Modes_Moss_pos_unlensed.npy")
-            a_i = np.load(folder+"a_i_Moss_pos.npy")
-            Omega_i = amp_delta@modes[0:len(amp_delta)]
-            
-            pars.Omega_i = Omega_i
-            pars.a_i = a_i
-            
-            Omega_m = pars.omegam
-            G = 6.67430e-11
-            kappa = 8*np.pi*G
-            c = 2.99792458e8
-            sigma_boltz = 5.670374419e-8
-            Mpc = 3.085677581e22
-            Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(pars.H0*1e3)**2)*c**2
-            Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
-            Omega_r = Omega_g+Omega_neutrino
-            Omega_Lambda = 1-Omega_m-Omega_r
-            
-            a = np.logspace(-7,0,250)
-            beta = 6
-            Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
-            a_vec = np.expand_dims(a,1)
-            Omega_Moss_i = Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
-            Omega_DE = Omega_Lambda + np.sum(Omega_Moss_i, axis=1)
-            
-            ln_Omega_DE = np.log(Omega_DE)
-            ln_a = np.log(a)
-            dln_Omega_DE = ln_Omega_DE[1:]-ln_Omega_DE[0:-1]
-            dln_a = ln_a[1:]-ln_a[0:-1]
-            w_DE = -1.-1./3.*dln_Omega_DE/dln_a
-            w_DE = np.append(w_DE, w_DE[-1])
-            
-            self.set_w_a_table(a,w_DE)
-            
-            if cs2_1 is not None and cs2_2 is not None:
-                a_cs2 = np.array([1e-5,1e-3])
-                cs2 = np.array([cs2_1,cs2_2])
-                self.set_cs2_a_table(a_cs2,cs2)
+
+        if cs2_1 is not None and cs2_2 is not None:
+            a_cs2 = np.array([1e-5,1e-3])
+            cs2 = np.array([cs2_1,cs2_2])
+            self.set_cs2_a_table(a_cs2,cs2)
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
@@ -148,12 +117,9 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         return super().__getstate__()
     
 def update_DE(pars, H0):
+    
+    Omega_i = pars.amp_delta@modes[0:len(pars.amp_delta)]
     Omega_m = (pars.omch2+pars.ombh2)/(H0/100)**2
-    G = 6.67430e-11
-    kappa = 8*np.pi*G
-    c = 2.99792458e8
-    sigma_boltz = 5.670374419e-8
-    Mpc = 3.085677581e22
     Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
     Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
     Omega_r = Omega_g+Omega_neutrino
@@ -161,9 +127,9 @@ def update_DE(pars, H0):
 
     a = np.logspace(-7,0,250)
     beta = 6
-    Omega_lcdm_i = Omega_m/pars.a_i**3+Omega_r/pars.a_i**4+Omega_Lambda
+    Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
     a_vec = np.expand_dims(a,1)
-    Omega_Moss_i = pars.Omega_i*Omega_lcdm_i*(2*pars.a_i**beta/(a_vec**beta+pars.a_i**beta))**(6/beta)
+    Omega_Moss_i = Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
     Omega_DE = Omega_Lambda + np.sum(Omega_Moss_i, axis=1)
 
     ln_Omega_DE = np.log(Omega_DE)
