@@ -2305,7 +2305,7 @@
     
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, sigma, cothxor, State%grhok)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, cothxor)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2692,8 +2692,7 @@
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
             State%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
             gpres, w_dark_energy_t, State%grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix, a, sigma, cothxor, dgpi_de)
-        !maybe need to check that everything is set at the right place: what should be in dgpi, dpi_diff, pidot_sum, diff_rhopi, etc.
+            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix, a, cothxor, dgpi_de)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then

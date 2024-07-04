@@ -112,18 +112,17 @@
     else
         dgrhoe = ay(w_ix) * grhov_t
         dgqe = ay(w_ix + 1) * grhov_t * (1 + w)
-        dgpie = ay(w_ix + 2) * grhov_t * (1 + w) !factor of (1+w) to transform Sigma to Pi
+        dgpie = ay(w_ix + 2) * grhov_t * (1 + w) !factor of (1+w) to transform y(w_ix+2) to Pi
     end if
     end subroutine TDarkEnergyFluid_PerturbedStressEnergy
 
 
     function TDarkEnergyFluid_diff_rhopi_Add_Term(this, dgrhoe, dgqe, grho, gpres, w,  grhok, adotoa, &
-        Kf1, k, grhov_t, z, k2, yprime, y, w_ix, a, sigma, cothxor, dgpie) result(ppiedot)
+        Kf1, k, grhov_t, z, k2, yprime, y, w_ix, a, cothxor, dgpie) result(ppiedot)
     !Get derivative of anisotropic stress
-    !Should we return exactly pidot or \dot{grho*pi} or grho*pidot?
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(in) :: dgrhoe, dgqe, grho, gpres, w, grhok, adotoa, &
-        k, grhov_t, z, k2, yprime(:), y(:), Kf1, a, sigma, cothxor, dgpie
+        k, grhov_t, z, k2, yprime(:), y(:), Kf1, a, cothxor, dgpie
     integer, intent(in) :: w_ix
     real(dl) :: ppiedot, wdot, loga
 
@@ -140,18 +139,19 @@
         elseif (this%wa/=0) then
             wdot = -this%wa*adotoa*a
         end if
-        !ppiedot = (wdot / (1._dl + w) - 3 * cothxor * this%R_c) * dgpie / grhov_t &
-        !    + 4 * this%cvis2 * k * (dgqe / (grhov_t * (1._dl + w)) + sigma)
-        ppiedot = 0._dl
+        ! ppiedot = rhodot * pi + rho * pidot. Beware dgpie = rho * pi
+        ppiedot = - 3._dl * adotoa * (1._dl + w) * dgpie + grhov_t * &
+            (dgpie / grhov_t * (wdot / (1._dl + w) - 3 * (cothxor + adotoa * (this%R_c - 1._dl))) +  &
+            4 * this%cvis2 * k *(y(w_ix + 1) + z))
     end if
     end function TDarkEnergyFluid_diff_rhopi_Add_Term
 
 
     subroutine TDarkEnergyFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y, cs2_lam, sigma, cothxor, grhok)
+        a, adotoa, k, z, y, cs2_lam, cothxor)
     class(TDarkEnergyFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, sigma, cothxor, grhok
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, cothxor
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, loga
 
@@ -171,10 +171,10 @@
     !velocity
     if (abs(w+1) > 1e-6) then
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
-            k * cs2_lam * y(w_ix) / (1 + w) - 2._dl / 3 * (k - 3 * grhok / k) * y(w_ix + 2)
+            k * cs2_lam * y(w_ix) / (1 + w) - 2._dl / 3 * k * y(w_ix + 2)
         ! anisotropic stress. Note that y(w_ix+2) is Pi/(1+w) in CAMB's notations
-        ayprime(w_ix + 2) = -3 * cothxor * this%R_c * y(w_ix + 2) + &
-            4 * this%cvis2 / (1 + w) * k * (y(w_ix + 1) + sigma)
+        ayprime(w_ix + 2) = -3 * (cothxor + adotoa * (this%R_c - 1._dl)) * y(w_ix + 2) + &
+            4 * this%cvis2 * k / (1 + w) * (y(w_ix + 1) + z)
     else
         ayprime(w_ix + 1) = 0
         ayprime(w_ix + 2) = 0
@@ -284,10 +284,10 @@
     end function TAxionEffectiveFluid_grho_de
 
     subroutine TAxionEffectiveFluid_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y, cs2_lam, sigma, cothxor, grhok)
+        a, adotoa, k, z, y, cs2_lam, cothxor)
     class(TAxionEffectiveFluid), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, sigma, cothxor, grhok
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, cothxor
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
