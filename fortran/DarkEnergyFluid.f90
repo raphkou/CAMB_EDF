@@ -139,10 +139,14 @@
         elseif (this%wa/=0) then
             wdot = -this%wa*adotoa*a
         end if
-        ! ppiedot = rhodot * pi + rho * pidot. Beware dgpie = rho * pi
-        ppiedot = - 3._dl * adotoa * (1._dl + w) * dgpie + grhov_t * &
-            (dgpie / grhov_t * (wdot / (1._dl + w) - 3 * (cothxor + adotoa * (this%R_c - 1._dl))) +  &
-            4 * this%cvis2 * k *(y(w_ix + 1) + z))
+        if (abs(w+1) > 1e-6) then
+            ! ppiedot = rhodot * pi + rho * pidot. Beware dgpie = rho * pi
+            ppiedot = - 3._dl * adotoa * (1._dl + w) * dgpie + grhov_t * &
+                (dgpie / grhov_t * (wdot / (1._dl + w) - 3 * (cothxor + adotoa * (this%R_c - 1._dl))) +  &
+                4 * this%cvis2 * k *(y(w_ix + 1) + z))
+        else
+            ppiedot = 0._dl
+        end if
     end if
     end function TDarkEnergyFluid_diff_rhopi_Add_Term
 

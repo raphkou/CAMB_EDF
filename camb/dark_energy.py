@@ -4,7 +4,7 @@ from ctypes import c_int, c_double, byref, POINTER, c_bool
 from camb.constants import kappa, c, sigma_boltz, Mpc
 
 folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-modes = np.load(folder+"Modes_Moss_pos_unlensed.npy")
+modes = np.load(folder+"modes_Moss_pos_unlensed.npy")
 a_i = np.load(folder+"a_i_Moss_pos.npy")
 
 class DarkEnergyModel(F2003Class):
