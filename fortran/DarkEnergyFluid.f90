@@ -177,8 +177,12 @@
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
             k * cs2_lam * y(w_ix) / (1 + w) - 2._dl / 3 * k * y(w_ix + 2)
         ! anisotropic stress. Note that y(w_ix+2) is Pi/(1+w) in CAMB's notations
-        ayprime(w_ix + 2) = -3 * (cothxor + adotoa * (this%R_c - 1._dl)) * y(w_ix + 2) + &
-            4 * this%cvis2 * k / (1 + w) * (y(w_ix + 1) + z)
+        if (a<0.1) then !Huge speed up by considering only a below 0.1
+            ayprime(w_ix + 2) = -3 * (cothxor + adotoa * (this%R_c - 1._dl)) * y(w_ix + 2) + &
+                4 * this%cvis2 * k / (1 + w) * (y(w_ix + 1) + z)
+        else
+            ayprime(w_ix + 2) = 0._dl
+        end if
     else
         ayprime(w_ix + 1) = 0
         ayprime(w_ix + 2) = 0
