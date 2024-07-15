@@ -2207,6 +2207,7 @@
     if (EV%is_cosmological_constant) then
         grhov_t = State%grhov * a2
         w_dark_energy_t = -1_dl
+        dgpi_de = 0._dl
     else
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
@@ -2366,7 +2367,7 @@
             !AL: First order slip seems to be fine here to 2e-4
 
             !  8*pi*G*a*a*SUM[rho_i*sigma_i]
-            dgs = grhog_t*pig+grhor_t*pir
+            dgs = grhog_t*pig+grhor_t*pir+dgpi_de
 
             ! Define shear derivative to first order
             sigmadot = -2*adotoa*sigma-dgs/k+etak
@@ -2680,7 +2681,7 @@
             dgpi_de=0
         end if
 
-        dgpi  = grhor_t*pir + grhog_t*pig + dgpi_de
+        dgpi  = grhor_t*pir + grhog_t*pig
         dgpi_diff = 0  !sum (3*p_nu -rho_nu)*pi_nu
         pidot_sum = grhog_t*pigdot + grhor_t*pirdot
         clxnu =0
@@ -2693,6 +2694,8 @@
             State%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
             gpres, w_dark_energy_t, State%grhok, adotoa, &
             EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix, a, cothxor, dgpi_de)
+        ! Beware not to add dgpi_de to dgpi before otherwise some contribution to diff_rhopi would be counted twice!
+        dgpi = dgpi + dgpi_de
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
