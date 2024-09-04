@@ -112,7 +112,7 @@
     else
         dgrhoe = ay(w_ix) * grhov_t
         dgqe = ay(w_ix + 1) * grhov_t * (1 + w)
-        dgpie = ay(w_ix + 2) * grhov_t * (1 + w) !factor of (1+w) to transform y(w_ix+2) to Pi
+        dgpie = ay(w_ix + 2) * grhov_t
     end if
     end subroutine TDarkEnergyFluid_PerturbedStressEnergy
 
@@ -141,9 +141,7 @@
         end if
         if (abs(w+1) > 1e-6) then
             ! ppiedot = rhodot * pi + rho * pidot. Beware dgpie = rho * pi
-            ppiedot = - 3._dl * adotoa * (1._dl + w) * dgpie + grhov_t * &
-                (dgpie / grhov_t * (wdot / (1._dl + w) - 3 * (cothxor + adotoa * (this%R_c - 1._dl))) +  &
-                4 * this%cvis2 * k *(y(w_ix + 1) + z))
+            ppiedot = - 3._dl * adotoa * (1._dl + w) * dgpie + grhov_t * yprime(w_ix + 2)
         else
             ppiedot = 0._dl
         end if
@@ -175,13 +173,13 @@
     !velocity
     if (abs(w+1) > 1e-6) then
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
-            k * cs2_lam * y(w_ix) / (1 + w) - 2._dl / 3 * k * y(w_ix + 2)
+            k * cs2_lam * y(w_ix) / (1 + w) - 2._dl / 3 * k * y(w_ix + 2) / (1 + w)
         ! anisotropic stress. Note that y(w_ix+2) is Pi/(1+w) in CAMB's notations
-        if (a<0.1) then !Huge speed up by considering only a below 0.1
+        if (a<0.1) then
             ayprime(w_ix + 2) = -3 * (cothxor + adotoa * (this%R_c - 1._dl)) * y(w_ix + 2) + &
-                4 * this%cvis2 * k / (1 + w) * (y(w_ix + 1) + z)
+                4 * this%cvis2 * k * (y(w_ix + 1) + z)
         else
-            ayprime(w_ix + 2) = 0._dl
+            ayprime(w_ix + 2) = 0
         end if
     else
         ayprime(w_ix + 1) = 0
