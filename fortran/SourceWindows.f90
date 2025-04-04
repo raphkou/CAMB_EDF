@@ -11,12 +11,15 @@
         integer :: source_type = window_counts
         real(dl) :: bias = 1._dl
         real(dl) :: dlog10Ndm = 0._dl
+        real(dl) :: shear_bias = 0._dl
+        real(dl) :: intwin
     contains
     procedure :: count_obs_window_z
     procedure :: Window_f_a
     procedure :: counts_background_z
     procedure :: GetScales
     procedure :: GetBias
+    procedure :: GetAIA
     end Type TSourceWindow
 
     Type, extends(TSourceWindow) :: TGaussianSourceWindow
@@ -33,6 +36,7 @@
         Type(TCubicSpline), allocatable :: Window
         Type(TCubicSpline), allocatable :: Bias_z
         Type(TInterpGrid2D), allocatable :: Bias_zk
+        Type(TCubicSpline), allocatable :: A_IA
         real(dl) :: maxwin
     contains
     procedure, nopass :: SelfPointer => TSplinedSourceWindow_SelfPointer
@@ -41,6 +45,7 @@
     procedure :: SetTable => TSplinedSourceWindow_SetTable
     procedure :: SetTable2DBias => TSplinedSourceWindow_SetTable2DBias
     procedure :: GetBias => TSplinedSourceWindow_GetBias
+    procedure :: GetAIA => TSplinedSourceWindow_GetAIA
     end Type TSplinedSourceWindow
 
     Type TSourceWindowHolder
@@ -61,6 +66,7 @@
         logical :: counts_ISW = .true.
         logical :: counts_potential = .true. !terms in potentials at source
         logical :: counts_evolve = .false.
+        logical :: use_IA = .false. !By default, do not include intrinsic alignment
         logical :: line_phot_dipole = .false.
         logical :: line_phot_quadrupole= .false.
         logical :: line_basic = .true.
@@ -125,6 +131,12 @@
     class(TSourceWindow) :: this
     real(dl), intent(in) :: k,a
     GetBias = this%Bias !Simplest scale-independent and time independent model
+    end function
+    
+    real(dl) function GetAIA(this,a)
+    class(TSourceWindow) :: this
+    real(dl), intent(in) :: a
+    GetAIA = 0
     end function
 
     function Window_f_a(this, a, winamp)
@@ -240,13 +252,32 @@
         TSplinedSourceWindow_GetBias = this%Bias !Simplest scale-independent and time independent model
     end if
     end function
+    
+    
+    real(dl) function TSplinedSourceWindow_GetAIA(this,a)
+    class(TSplinedSourceWindow) :: this
+    real(dl), intent(in) :: a
+    real(dl) z
+
+    if (allocated(this%A_IA)) then
+        z = 1/a-1
+        if (z > this%Window%X(this%Window%n) .or. z < this%Window%X(1)) then
+            TSplinedSourceWindow_GetAIA = 0
+        else
+            TSplinedSourceWindow_GetAIA = this%A_IA%value(z)
+        end if
+    else
+        TSplinedSourceWindow_GetAIA = 0
+    end if
+    end function
 
 
-    subroutine  TSplinedSourceWindow_SetTable(this, n, z, W, bias_z)
+    subroutine  TSplinedSourceWindow_SetTable(this, n, z, W, bias_z, A_IA)
     class(TSplinedSourceWindow) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: z(n), W(n)
-    real(dl), intent(in), optional :: bias_z(n)
+    real(dl), intent(in), optional :: bias_z(n), A_IA(n)
+    real(dl) :: IntegralArrayWin(n)
 
     if (allocated(this%Window)) deallocate(this%Window)
     if (n>0) then
@@ -262,13 +293,23 @@
             call this%Bias_z%Init(z,bias_z)
         end if
     end if
+    if (present(A_IA)) then
+        if (allocated(this%A_IA)) deallocate(this%A_IA)
+        if (n>0) then
+            allocate(this%A_IA)
+            call this%A_IA%Init(z,A_IA)
+            call this%Window%IntegralArray(IntegralArrayWin)
+            this%intwin = IntegralArrayWin(n)
+        end if
+    end if
     end subroutine TSplinedSourceWindow_SetTable
 
-    subroutine  TSplinedSourceWindow_SetTable2DBias(this, n, nk, z, k, W, bias_zk)
+    subroutine  TSplinedSourceWindow_SetTable2DBias(this, n, nk, z, k, W, bias_zk, A_IA)
     class(TSplinedSourceWindow) :: this
     integer, intent(in) :: n, nk
     real(dl), intent(in) :: z(n), W(n), k(nk)
     real(dl), intent(in) :: bias_zk(n,nk)
+    real(dl), intent(in), optional :: A_IA(n)
 
     if (allocated(this%Window)) deallocate(this%Window)
     if (n>0) then
@@ -280,6 +321,13 @@
     if (n>0 .and. nk>0) then
         allocate(this%Bias_zk)
         call this%Bias_zk%Init(z,k,bias_zk)
+    end if
+    if (present(A_IA)) then
+        if (allocated(this%A_IA)) deallocate(this%A_IA)
+        if (n>0) then
+            allocate(this%A_IA)
+            call this%A_IA%Init(z,A_IA)
+        end if
     end if
 
     end subroutine TSplinedSourceWindow_SetTable2DBias
@@ -301,6 +349,7 @@
     winamp = TSplinedSourceWindow_count_obs_window_z/this%maxwin
 
     end function TSplinedSourceWindow_count_obs_window_z
+
 
     subroutine TSplinedSourceWindow_GetScales(this, zpeak, sigma_z, zpeakstart, zpeakend)
     class(TSplinedSourceWindow) :: this

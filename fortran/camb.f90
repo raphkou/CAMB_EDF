@@ -294,6 +294,7 @@
                 RedWin%source_type = window_counts
             elseif (S == 'lensing') then
                 RedWin%source_type = window_lensing
+                call Ini%Read('use_IA', P%SourceTerms%use_IA)
             else
                 ErrMsg = 'Error: unknown type of window '//trim(S)
                 return

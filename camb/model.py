@@ -136,6 +136,7 @@ class SourceTermParams(CAMB_Structure):
         ("counts_ISW", c_bool, "Include tiny ISW terms"),
         ("counts_potential", c_bool, "Include tiny terms in potentials at source"),
         ("counts_evolve", c_bool, "Account for source evolution"),
+        ("use_IA", c_bool, "Include intrinsic alignment"),
         ("line_phot_dipole", c_bool, "Dipole sources for 21cm"),
         ("line_phot_quadrupole", c_bool, "Quadrupole sources for 21cm"),
         ("line_basic", c_bool, "Include main 21cm monopole density/spin temperature sources"),

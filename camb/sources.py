@@ -11,7 +11,8 @@ class SourceWindow(F2003Class):
     """
     _fields_ = [("source_type", c_int, {"names": ["21cm", "counts", "lensing"], "start": 1}),
                 ("bias", c_double),
-                ("dlog10Ndm", c_double)]
+                ("dlog10Ndm", c_double),
+                ("shear_bias", c_double)]
 
     _fortran_class_module_ = "SourceWindows"
     _fortran_class_name_ = "TSourceWindow"
@@ -35,21 +36,21 @@ class SplinedSourceWindow(SourceWindow):
     """
     _fortran_class_name_ = "TSplinedSourceWindow"
 
-    _methods_ = [("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null]),
-                 ("SetTable2DBias", [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d])
+    _methods_ = [("SetTable", [POINTER(c_int), numpy_1d, numpy_1d, numpy_1d_or_null, numpy_1d_or_null]),
+                 ("SetTable2DBias", [POINTER(c_int), POINTER(c_int), numpy_1d, numpy_1d, numpy_1d, numpy_2d, numpy_1d_or_null])
                  ]
 
     def __init__(self, **kwargs):
         z = kwargs.pop('z', None)
         if z is not None:
             self.set_table(z, kwargs.pop('W'), kwargs.pop('bias_z', None),
-                           kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None))
+                           kwargs.pop('k_bias', None), kwargs.pop('bias_kz', None), kwargs.pop('A_IA', None))
         super().__init__(**kwargs)
 
     def __getstate__(self):
         raise TypeError("Cannot save class with splines")
 
-    def set_table(self, z, W, bias_z=None, k_bias=None, bias_kz=None):
+    def set_table(self, z, W, bias_z=None, k_bias=None, bias_kz=None, A_IA=None):
         """
         Set arrays of z and W(z) for cubic spline interpolation. Note that W(z) is the total count distribution
         observed, not a fractional selection function on an underlying distribution.
@@ -60,6 +61,7 @@ class SplinedSourceWindow(SourceWindow):
         :param k_bias: optional array of k values for bias (Mpc^-1)
         :param bias_kz: optional 2D contiguous array for space-dependent bias(k, z).
                         Must ensure range of k is large enough to cover required values.
+        :param A_IA: optional array of intrinsic alignment amplitude array at each z.
 
         """
         if len(W) != len(z) or z[-1] < z[1] or len(z) < 5:
@@ -77,6 +79,12 @@ class SplinedSourceWindow(SourceWindow):
             k = np.ascontiguousarray(k_bias, dtype=np.float64)
             if bias_kz.shape[0] != len(k) or bias_kz.shape[1] != len(z):
                 raise ValueError('Bias array does not match shape of k,z arrays')
-            self.f_SetTable2DBias(byref(c_int(len(z))), byref(c_int(len(k))), z, k, W, bias_kz)
+            if A_IA is not None:
+                A_IA = np.ascontiguousarray(A_IA, dtype=np.float64)
+            self.f_SetTable2DBias(byref(c_int(len(z))), byref(c_int(len(k))), z, k, W, bias_kz, A_IA)
+            
         else:
-            self.f_SetTable(byref(c_int(len(z))), z, W, bias_z)
+            if A_IA is not None:
+                A_IA = np.ascontiguousarray(A_IA, dtype=np.float64)
+            self.f_SetTable(byref(c_int(len(z))), z, W, bias_z, A_IA)
+            

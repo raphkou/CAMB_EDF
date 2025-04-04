@@ -1352,6 +1352,7 @@
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
     !Line of sight sources for number counts, lensing and 21cm redshift windows
+    use constants, only : c
     type(EvolutionVars) EV
     real(dl) y(EV%nvar), yprime(EV%nvar)
     real(dL), intent(out) :: sources(:)
@@ -1371,6 +1372,7 @@
     integer j
     real(dl) Tmat,Trad, Delta_source, Delta_source2
     real(dl) xe, chi, polter_line
+    real(dl) winamp
 
     j = EV%OutputStep
     if (CP%SourceTerms%line_reionization) sources(2)=0
@@ -1394,7 +1396,13 @@
         associate (W => State%Redshift_W(w_ix))
 
             if (W%kind == window_lensing) then
-                sources(3+w_ix) =-2*phi*W%win_lens(j)
+                sources(3+w_ix) =-2*phi*W%win_lens(j)*(1+W%Window%shear_bias)
+                if (CP%SourceTerms%use_IA) then
+                ! adding 2/3*a/(Omega_m*H0**2)*A_IA*p(chi)/chi**2 (with p(chi)=p(z)dz/dchi=p(z)*adotoa/a)
+                    chi =State%tau0-tau
+                    sources(3+w_ix) = sources(3+w_ix)-2*phi*2/3/((CP%omch2+CP%ombh2)*100**2/c**2*1000**2)* &
+                        W%Window%GetAIA(a)*W%Window%count_obs_window_z(1/a-1, winamp)/W%Window%intwin*adotoa/chi**2
+                endif
             elseif (W%kind == window_counts) then
                 !assume zero velocity bias and relevant tracer is CDM perturbation
                 !neglect anisotropic stress in some places
