@@ -173,7 +173,7 @@
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhoedf,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
         real(dl) Omega_de
@@ -458,6 +458,7 @@
         this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
             - (this%grhornomass + this%grhog)/this%grhocrit
         this%grhov=this%grhocrit*this%Omega_de
+        this%grhoedf=this%grhocrit*this%CP%EDF%Omega_EDF
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
@@ -931,13 +932,14 @@
     class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a_arr(n)
-    real(dl) :: grhov_t, rhonu, grhonu, a
-    real(dl), intent(out) :: densities(8,n)
+    real(dl) :: grhov_t, grhoedf_t, rhonu, grhonu, a
+    real(dl), intent(out) :: densities(9,n)
     integer nu_i,i
 
     do i=1, n
         a = a_arr(i)
         call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
+        call this%CP%EDF%BackgroundDensityAndPressure(this%grhoedf, a, grhoedf_t)
         grhonu = 0
 
         if (this%CP%Num_Nu_massive /= 0) then
@@ -955,6 +957,7 @@
         densities(6,i) = this%grhornomass
         densities(7,i) = grhonu
         densities(8,i) = grhov_t*a**2
+        densities(9,i) = grhoedf_t*a**2
         densities(1,i) = sum(densities(2:8,i))
     end do
 
@@ -1066,6 +1069,20 @@
     grhov_t = grhov_t/a**2
 
     end subroutine CAMBdata_DarkEnergyStressEnergy
+    
+    subroutine CAMBdata_EDFStressEnergy(this, a, grhoedf_t, w, n)
+    class(CAMBdata) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n)
+    real(dl), intent(out) :: grhoedf_t(n), w(n)
+    integer i
+
+    do i=1, n
+        call this%CP%EDF%BackgroundDensityAndPressure(1._dl, a(i), grhoedf_t(i), w(i))
+    end do
+    grhoedf_t = grhoedf_t/a**2
+
+    end subroutine CAMBdata_EDFStressEnergy
 
     function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
     class(CAMBdata) :: this

@@ -32,6 +32,7 @@
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
+        real(dl) :: Omega_EDF !EDF initial density
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
     contains
@@ -179,6 +180,7 @@
     if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
 
     this%use_tabulated_w = .true.
+    this%is_cosmological_constant = .false.
     call this%equation_of_state%Init(log(a), w)
 
     allocate(integral(this%equation_of_state%n))

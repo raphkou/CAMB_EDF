@@ -39,7 +39,7 @@
     procedure :: PerturbedStressEnergy => TAxionEffectiveFluid_PerturbedStressEnergy
     procedure :: PerturbationEvolve => TAxionEffectiveFluid_PerturbationEvolve
     end type TAxionEffectiveFluid
-
+    
     contains
 
 

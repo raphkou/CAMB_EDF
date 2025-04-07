@@ -8,7 +8,7 @@ from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
-from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_DE
+from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_EDF, DarkEnergyFluid
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
@@ -56,7 +56,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b', 'dopacity', 'ddopacity', 'dvisibility',
                     'ddvisibility']
-density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de']
+density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de', 'edf']
 
 neutrino_hierarchy_normal = 'normal'
 neutrino_hierarchy_inverted = 'inverted'
@@ -214,6 +214,7 @@ class CAMBparams(F2003Class):
         ("Recomb", AllocatableObject(recomb.RecombinationModel)),
         ("Reion", AllocatableObject(reion.ReionizationModel)),
         ("DarkEnergy", AllocatableObject(DarkEnergyModel)),
+        ("EDF", AllocatableObject(DarkEnergyModel)),
         ("NonLinearModel", AllocatableObject(NonLinearModel)),
         ("Accuracy", AccuracyParams),
         ("SourceTerms", SourceTermParams),
@@ -432,7 +433,7 @@ class CAMBparams(F2003Class):
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
                       tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
-                      theta_H0_range=(40, 100), setter_H0=None, amp_delta=None):
+                      theta_H0_range=(40, 100), setter_H0=None, amp_delta=None, cs2_1=None, cs2_2=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -533,7 +534,7 @@ class CAMBparams(F2003Class):
             if cosmomc_theta and thetastar:
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
             if amp_delta is not None and setter_H0 is None:
-                setter_H0 = update_DE
+                setter_H0 = update_EDF
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
         else:
@@ -543,7 +544,8 @@ class CAMBparams(F2003Class):
                 raise CAMBValueError('H0 is the value in km/s/Mpc, your value looks very small')
             self.H0 = H0
             if amp_delta is not None:
-                update_DE(self, H0)
+                update_EDF(self, H0)
+                self.EDF.set_edf_cs2(cs2_1, cs2_2)
 
         if tau is not None:
             if zrei is not None:

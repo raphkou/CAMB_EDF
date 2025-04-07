@@ -7,12 +7,13 @@
     implicit none
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: dtauda, grhoa2, grhov_t
+    real(dl) :: dtauda, grhoa2, grhov_t, grhoedf_t
 
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
+    call this%CP%EDF%BackgroundDensityAndPressure(this%grhoedf, a, grhoedf_t)
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + grhoedf_t * a**2
     if (grhoa2 <= 0) then
         call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
         dtauda = 0
@@ -66,9 +67,10 @@
     type EvolutionVars
         real(dl) q, q2
         real(dl) k_buf,k2_buf ! set in initial
-        logical :: is_cosmological_constant
+        logical :: is_cosmological_constant, use_EDF
 
         integer w_ix !Index of two quintessence equations
+        integer w_edf !Index of EDF equations
         integer Tg_ix !index of matter temerature perturbation
         integer reion_line_ix !index of matter temerature perturbation
 
@@ -151,7 +153,7 @@
     end type EvolutionVars
 
     ABSTRACT INTERFACE
-    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
+    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
         dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
@@ -162,7 +164,7 @@
         tau0, tau_maxvis, Kf, f_K)
     use precision
     real(dl), intent(out) :: sources(:)
-    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam,  &
+    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
         grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
         dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
@@ -560,6 +562,11 @@
     else
         EV%w_ix = 0
     end if
+    
+    !Early dark fluid
+    EV%w_edf = neq + 1
+    neq = neq + CP%EDF%num_perturb_equations
+    maxeq = maxeq + CP%EDF%num_perturb_equations
 
     !Sources
     if (CP%Evolve_delta_xe) then
@@ -650,6 +657,11 @@
     if (CP%DarkEnergy%num_perturb_equations > 0) &
         yout(EVOut%w_ix:EVOut%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1)
+        
+    ! Early Dark Fluid
+    if (CP%EDF%num_perturb_equations > 0) &
+        yout(EVOut%w_edf:EVOut%w_edf + CP%EDF%num_perturb_equations - 1) = &
+        y(EV%w_edf:EV%w_edf + CP%EDF%num_perturb_equations - 1)
 
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
@@ -1701,7 +1713,6 @@
 
     end subroutine outputt
 
-
     subroutine outputv(EV,yv,n,tau,dt,dte,dtb)
     !calculate the vector sources
     implicit none
@@ -1769,8 +1780,8 @@
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12
-    integer, parameter :: i_max = i_vde
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12,i_clxedf=13,i_vedf=14
+    integer, parameter :: i_max = i_vedf
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
@@ -1940,6 +1951,14 @@
             a, tau,  k)
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
+    end if
+    
+    ! EDF
+    if (CP%EDF%num_perturb_equations > 0) then
+        call CP%EDF%PerturbationInitial(InitVec(i_clxedf:i_clxedf + CP%EDF%num_perturb_equations - 1), &
+            a, tau,  k)
+        y(EV%w_edf:EV%w_edf + CP%EDF%num_perturb_equations - 1) = &
+            InitVec(i_clxedf:i_clxedf + CP%EDF%num_perturb_equations - 1)
     end if
 
     if (CP%Evolve_delta_Ts) then
@@ -2154,8 +2173,8 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
-    real(dl) w_dark_energy_t !equation of state of dark energy
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoedf_t,grhonu_t,sigma,polter
+    real(dl) w_dark_energy_t, w_edf_t !equation of state of dark energy and edf
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
@@ -2176,7 +2195,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam
+    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam, dgrho_edf, dgq_edf, cs2_edf, cs2_lam_edf
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2210,7 +2229,9 @@
     else
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
-
+    
+    call State%CP%EDF%BackgroundDensityAndPressure(State%grhoedf, a, grhoedf_t, w_edf_t)
+    
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
@@ -2225,7 +2246,7 @@
     end if
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
-    grho = grho_matter+grhor_t+grhog_t+grhov_t
+    grho = grho_matter+grhor_t+grhog_t+grhov_t+grhoedf_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
     if (State%flat) then
@@ -2288,6 +2309,12 @@
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de
     end if
+    
+    call State%CP%EDF%PerturbedStressEnergy(dgrho_edf, dgq_edf, &
+            a, dgq, dgrho, grho, grhoedf_t, w_edf_t, gpres_noDE, etak, &
+            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_edf)
+        dgrho = dgrho + dgrho_edf
+        dgq = dgq + dgq_edf
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2306,6 +2333,10 @@
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
+
+    cs2_lam_edf = State%CP%EDF%cs2_de_a(a)
+    call State%CP%EDF%PerturbationEvolve(ayprime, w_edf_t, &
+        EV%w_edf, a, adotoa, k, z, ay, cs2_lam_edf)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2687,11 +2718,14 @@
             call MassiveNuVarsOut(EV,ay,ayprime,a, adotoa, dgpi=dgpi, clxnu_all=clxnu, &
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t
+        gpres = gpres_noDE + w_dark_energy_t*grhov_t + w_edf_t*grhoedf_t
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
             State%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
             gpres, w_dark_energy_t, State%grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
+            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix) + &
+            State%CP%EDF%diff_rhopi_Add_Term(dgrho_edf, dgq_edf, grho, &
+            gpres, w_edf_t, State%grhok, adotoa, &
+            EV%kf(1), k, grhoedf_t, z, k2, ayprime, ay, EV%w_edf)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
@@ -2825,11 +2859,11 @@
     real(dl) ep,tau,grho,rhopi,cs2,opacity,gpres
     logical finished_tightcoupling
     real(dl), dimension(:),pointer :: neut,neutprime,E,B,Eprime,Bprime
-    real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
+    real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoedf_t,polter
     real(dl) sigma, qg,pig, qr, vb, rhoq, vbdot, photbar, pb43
     real(dl) k,k2,a,a2, adotdota
     real(dl) pir,adotoa
-    real(dl) w_dark_energy_t
+    real(dl) w_dark_energy_t, w_edf_t
 
     k2=EV%k2_buf
     k=EV%k_buf
@@ -2868,8 +2902,9 @@
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
     call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
+    call CP%EDF%BackgroundDensityAndPressure(State%grhoedf, a, grhoedf_t, w_edf_t)
 
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t+grhoedf_t
     gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
 
     adotoa=sqrt(grho/3._dl)

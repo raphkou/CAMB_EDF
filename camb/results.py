@@ -212,6 +212,7 @@ class CAMBdata(F2003Class):
                  ('RedshiftAtTimeArr', [numpy_1d, numpy_1d, int_arg]),
                  ('CosmomcTheta', [], c_double),
                  ('DarkEnergyStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
+                 ('EDFStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
                  ('get_lmax_lensed', [], c_int),
                  ('get_zstar', [d_arg], c_double),
                  ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg])
@@ -643,7 +644,7 @@ class CAMBdata(F2003Class):
         if unknown:
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.density_names))
         arr = np.atleast_1d(a)
-        outputs = np.zeros((arr.shape[0], 8))
+        outputs = np.zeros((arr.shape[0], 9))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
         indices = [model.density_names.index(var) for var in vars]
         if format == 'dict':
@@ -670,6 +671,19 @@ class CAMBdata(F2003Class):
         rho = np.zeros(scales.shape)
         w = np.zeros(scales.shape)
         self.f_DarkEnergyStressEnergy(scales, rho, w, byref(c_int(len(scales))))
+        if np.isscalar(a):
+            return rho[0], w[0]
+        else:
+            return rho, w
+
+    def get_edf_rho_w(self, a):
+        if np.isscalar(a):
+            scales = np.array([a])
+        else:
+            scales = np.ascontiguousarray(a)
+        rho = np.zeros(scales.shape)
+        w = np.zeros(scales.shape)
+        self.f_EDFStressEnergy(scales, rho, w, byref(c_int(len(scales))))
         if np.isscalar(a):
             return rho[0], w[0]
         else:
