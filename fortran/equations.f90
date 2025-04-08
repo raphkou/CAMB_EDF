@@ -153,22 +153,22 @@
     end type EvolutionVars
 
     ABSTRACT INTERFACE
-    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, w_edf, cs2_edf, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoedf_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
-        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, clxedf, delta_p_b, &
+        dgq, qg, qr, qde, qedf, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
         tau0, tau_maxvis, Kf, f_K)
     use precision
     real(dl), intent(out) :: sources(:)
-    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam, w_edf, cs2_edf, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoedf_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
-        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, clxedf, delta_p_b, &
+        dgq, qg, qr, qde, qedf, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -2313,8 +2313,8 @@
     call State%CP%EDF%PerturbedStressEnergy(dgrho_edf, dgq_edf, &
             a, dgq, dgrho, grho, grhoedf_t, w_edf_t, gpres_noDE, etak, &
             adotoa, k, EV%Kf(1), ay, ayprime, EV%w_edf)
-        dgrho = dgrho + dgrho_edf
-        dgq = dgq + dgq_edf
+    dgrho = dgrho + dgrho_edf
+    dgq = dgq + dgq_edf
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2383,7 +2383,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t
+        gpres = gpres_noDE + w_dark_energy_t*grhov_t + w_edf_t*grhoedf_t
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2830,12 +2830,12 @@
                     procedure(TSource_func), pointer :: custom_sources_func
 
                     call c_f_procpointer(CP%CustomSources%c_source_func,custom_sources_func)
-
-                    call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
-                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
+                    cs2_edf = State%CP%EDF%cs2_de_a(a)
+                    call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, w_edf_t, cs2_edf, &
+                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoedf_t,grhonu_t, &
                         k, etak, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
-                        dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
-                        dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
+                        dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, dgrho_edf/grhoedf_t, delta_p_b, &
+                        dgq, qg, qr, dgq_de/grhov_t, dgq_edf/grhoedf_t, vb, qgdot, qrdot, vbdot, &
                         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
                         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -2905,7 +2905,7 @@
     call CP%EDF%BackgroundDensityAndPressure(State%grhoedf, a, grhoedf_t, w_edf_t)
 
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t+grhoedf_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t+grhoedf_t*w_edf_t
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2

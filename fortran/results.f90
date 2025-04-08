@@ -455,10 +455,10 @@
         this%grhoc=this%grhocrit*this%CP%omch2/h2
         this%grhob=this%grhocrit*this%CP%ombh2/h2
         this%grhok=this%grhocrit*this%CP%omk
-        this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
-            - (this%grhornomass + this%grhog)/this%grhocrit
-        this%grhov=this%grhocrit*this%Omega_de
         this%grhoedf=this%grhocrit*this%CP%EDF%Omega_EDF
+        this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
+            - (this%grhornomass + this%grhog)/this%grhocrit-this%CP%EDF%Omega_EDF
+        this%grhov=this%grhocrit*this%Omega_de
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
