@@ -493,6 +493,7 @@
         end if
         call this%CP%DarkEnergy%Init(this)
         call this%CP%EDF%Init(this)
+        this%CP%EDF%is_cosmological_constant = .false.
         if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)

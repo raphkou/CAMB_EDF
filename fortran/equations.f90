@@ -67,7 +67,7 @@
     type EvolutionVars
         real(dl) q, q2
         real(dl) k_buf,k2_buf ! set in initial
-        logical :: is_cosmological_constant, use_EDF
+        logical :: is_cosmological_constant
 
         integer w_ix !Index of two quintessence equations
         integer w_edf !Index of EDF equations

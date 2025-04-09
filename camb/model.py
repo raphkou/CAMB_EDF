@@ -525,9 +525,9 @@ class CAMBparams(F2003Class):
                                     byref(c_double(nnu)),
                                     byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
                                     byref(c_int(int(num_massive_neutrinos))))
-        if amp_delta is not None:
-            self.amp_delta = amp_delta
 
+        self.amp_delta = amp_delta
+        
         if cosmomc_theta or thetastar:
             if H0 is not None:
                 raise CAMBError('Set H0=None when setting theta.')
@@ -537,6 +537,7 @@ class CAMBparams(F2003Class):
                 setter_H0 = update_EDF
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
+            
         else:
             if H0 is None:
                 raise CAMBError('Must set H0, cosmomc_theta or thetastar')
@@ -544,8 +545,8 @@ class CAMBparams(F2003Class):
                 raise CAMBValueError('H0 is the value in km/s/Mpc, your value looks very small')
             self.H0 = H0
             if amp_delta is not None:
-                update_EDF(self, H0)
                 self.EDF.set_edf_cs2(cs2_1, cs2_2)
+            update_EDF(self, H0)
 
         if tau is not None:
             if zrei is not None:

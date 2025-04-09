@@ -180,7 +180,6 @@
     if (abs(a(size(a)) -1) > 1e-5) error stop 'w table must end at a=1'
 
     this%use_tabulated_w = .true.
-    this%is_cosmological_constant = .false.
     call this%equation_of_state%Init(log(a), w)
 
     allocate(integral(this%equation_of_state%n))
