@@ -117,7 +117,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         return super().__getstate__()
     
 def update_EDF(pars, H0):
-    if pars.amp_delta != None:
+    if pars.amp_delta != None and H0 != None:
         Omega_i = pars.amp_delta@modes[0:len(pars.amp_delta)]
         Omega_m = (pars.omch2+pars.ombh2)/(H0/100)**2
         Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
@@ -146,7 +146,8 @@ def update_EDF(pars, H0):
     else:
         pars.EDF.set_w_a_table(np.array([1]),np.array([-1]))
         pars.EDF.set_edf_initial_density(0.)
-        pars.H0 = H0
+        if H0 != None:
+            pars.H0 = H0
 
 
 @fortran_class
