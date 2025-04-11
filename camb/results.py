@@ -238,10 +238,7 @@ class CAMBdata(F2003Class):
         """
         :return: dictionary of derived parameter values, indexed by name ('kd', 'age', etc..)
         """
-        res = {}
-        for name, value in zip(model.derived_names, self.ThermoDerivedParams):
-            res[name] = value
-        return res
+        return dict(zip(model.derived_names, self.ThermoDerivedParams))
 
     def get_background_outputs(self):
         """
@@ -249,8 +246,7 @@ class CAMBdata(F2003Class):
 
         :return: rs/DV, H, DA, F_AP for each requested redshift (as 2D array)
         """
-        n = len(self.Params.z_outputs)
-        if not n:
+        if not (n := len(self.Params.z_outputs)):
             raise CAMBError('Set z_outputs with required redshifts (and then calculate transfers/results)'
                             ' before calling get_background_outputs')
         outputs = np.empty((n, 4))
@@ -528,8 +524,7 @@ class CAMBdata(F2003Class):
             import sympy
             named_vars = [var for var in vars if isinstance(var, str)]
 
-            unknown = set(named_vars) - set(model.evolve_names)
-            if unknown:
+            if unknown := set(named_vars).difference(model.evolve_names):
                 raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.evolve_names))
 
             num_standard_names = len(model.evolve_names)
@@ -552,18 +547,17 @@ class CAMBdata(F2003Class):
                 k = np.array(q, dtype=np.float64)
             times = np.array(np.atleast_1d(eta), dtype=np.float64)
             indices = np.argsort(times)  # times must be in increasing order
-            ncustom = len(custom_vars)
-            if ncustom:
+            if n_custom := len(custom_vars):
                 from . import symbolic
                 funcPtr = symbolic.compile_sympy_to_camb_source_func(custom_vars, frame=frame)
                 custom_source_func = ctypes.cast(funcPtr, ctypes.c_void_p)
             else:
                 custom_source_func = ctypes.c_void_p(0)
-            nvars = num_standard_names + ncustom
+            nvars = num_standard_names + n_custom
             outputs = np.empty((k.shape[0], times.shape[0], nvars))
             if CAMB_TimeEvolution(byref(self), byref(c_int(k.shape[0])), k, byref(c_int(times.shape[0])),
                                   times[indices], byref(c_int(nvars)), outputs,
-                                  byref(c_int(ncustom)), byref(custom_source_func)):
+                                  byref(c_int(n_custom)), byref(custom_source_func)):
                 config.check_global_error('get_time_evolution')
             i_rev = np.zeros(times.shape, dtype=int)
             i_rev[indices] = np.arange(times.shape[0])
@@ -600,17 +594,13 @@ class CAMBdata(F2003Class):
 
         if isinstance(vars, str):
             vars = [vars]
-        unknown = set(vars) - set(model.background_names)
-        if unknown:
+        if unknown := set(vars).difference(model.background_names):
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.background_names))
         outputs = np.zeros((eta.shape[0], 9))
         CAMB_BackgroundThermalEvolution(byref(self), byref(c_int(eta.shape[0])), eta, outputs)
         indices = [model.background_names.index(var) for var in vars]
         if format == 'dict':
-            res = {}
-            for var, index in zip(vars, indices):
-                res[var] = outputs[:, index]
-            return res
+            return {var: outputs[:, index] for var, index in zip(vars, indices)}
         else:
             assert format == 'array', "format must be dict or array"
             return outputs[:, np.array(indices)]
@@ -640,18 +630,14 @@ class CAMBdata(F2003Class):
         """
         if isinstance(vars, str):
             vars = [vars]
-        unknown = set(vars) - set(model.density_names)
-        if unknown:
+        if unknown := set(vars).difference(model.density_names):
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.density_names))
         arr = np.atleast_1d(a)
         outputs = np.zeros((arr.shape[0], 9))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
         indices = [model.density_names.index(var) for var in vars]
         if format == 'dict':
-            res = {}
-            for var, index in zip(vars, indices):
-                res[var] = outputs[:, index]
-            return res
+            return {var: outputs[:, index] for var, index in zip(vars, indices)}
         else:
             assert format == 'array', "format must be dict or array"
             return outputs[:, np.array(indices)]
@@ -664,14 +650,14 @@ class CAMBdata(F2003Class):
         :param a: scalar factor or array of scale factors
         :return: rho, w arrays at redshifts :math:`1/a-1` [or scalars if :math:`a` is scalar]
         """
-        if np.isscalar(a):
+        if scalar := np.isscalar(a):
             scales = np.array([a])
         else:
             scales = np.ascontiguousarray(a)
         rho = np.zeros(scales.shape)
         w = np.zeros(scales.shape)
         self.f_DarkEnergyStressEnergy(scales, rho, w, byref(c_int(len(scales))))
-        if np.isscalar(a):
+        if scalar:
             return rho[0], w[0]
         else:
             return rho, w
@@ -699,10 +685,7 @@ class CAMBdata(F2003Class):
         """
         dic = self.get_background_densities(1. / (1 + z), ['tot', var])
         res = dic[var] / dic['tot']
-        if np.isscalar(z):
-            return res[0]
-        else:
-            return res
+        return res[0] if np.isscalar(z) else res
 
     def get_matter_transfer_data(self) -> MatterTransferData:
         """
@@ -1385,7 +1368,8 @@ class CAMBdata(F2003Class):
             arr[indices] = arr.copy()
             return arr
 
-    def _make_scalar_or_arrays(self, z1, z2):
+    @staticmethod
+    def _make_scalar_or_arrays(z1, z2):
         if np.isscalar(z1):
             if np.isscalar(z2):
                 return z1, z2
@@ -1463,14 +1447,14 @@ class CAMBdata(F2003Class):
         :return: redshift at eta, scalar or array
         """
 
-        if np.isscalar(eta):
+        if scalar := np.isscalar(eta):
             times = np.array([eta], dtype=np.float64)
         else:
             times = np.ascontiguousarray(eta, dtype=np.float64)
         redshifts = np.empty(times.shape)
         self.f_RedshiftAtTimeArr(redshifts, times, byref(c_int(times.shape[0])))
         config.check_global_error('redshift_at_conformal_time')
-        if np.isscalar(eta):
+        if scalar:
             return redshifts[0]
         else:
             return redshifts
@@ -1487,7 +1471,7 @@ class CAMBdata(F2003Class):
         """
 
         if not np.isscalar(z):
-            z = np.asarray(z)
+            z = np.ascontiguousarray(z, dtype=np.float64)
         return self.angular_diameter_distance(z) * (1.0 + z) ** 2
 
     def h_of_z(self, z):
@@ -1503,7 +1487,7 @@ class CAMBdata(F2003Class):
         :return: H(z)
         """
         if not np.isscalar(z):
-            z = np.array(z, dtype=np.float64)
+            z = np.ascontiguousarray(z, dtype=np.float64)
             arr = np.empty(z.shape)
             self.f_HofzArr(arr, z, byref(c_int(z.shape[0])))
             return arr
@@ -1549,7 +1533,7 @@ class CAMBdata(F2003Class):
         :return: t(z)/Gigayear
         """
         if not np.isscalar(z):
-            z = np.asarray(z, dtype=np.float64)
+            z = np.ascontiguousarray(z, dtype=np.float64)
         return self.physical_time_a1_a2(0, 1.0 / (1 + z))
 
     def conformal_time_a1_a2(self, a1, a2):
@@ -1578,10 +1562,10 @@ class CAMBdata(F2003Class):
         :param tol: integration tolerance
         :return: eta(z)/Mpc
         """
-        if np.isscalar(z):
+        if scalar := np.isscalar(z):
             redshifts = np.array([z], dtype=np.float64)
         else:
-            redshifts = np.array(z, dtype=np.float64)
+            redshifts = np.asarray(z, dtype=np.float64)
             if presorted is True:
                 redshifts = redshifts[::-1].copy()
             elif presorted is None:
@@ -1593,7 +1577,7 @@ class CAMBdata(F2003Class):
             tol = byref(c_double(tol))
 
         self.f_TimeOfzArr(eta, redshifts, byref(c_int(eta.shape[0])), tol)
-        if np.isscalar(z):
+        if scalar:
             return eta[0]
         else:
             if presorted is False:
@@ -1612,16 +1596,13 @@ class CAMBdata(F2003Class):
         :param z: redshift or array of redshifts
         :return: r_s(z)
         """
-        if np.isscalar(z):
+        if scalar := np.isscalar(z):
             redshifts = np.array([z], dtype=np.float64)
         else:
             redshifts = np.array(z, dtype=np.float64)
         rs = np.empty(redshifts.shape)
         self.f_sound_horizon_zArr(rs, redshifts, byref(c_int(redshifts.shape[0])))
-        if np.isscalar(z):
-            return rs[0]
-        else:
-            return rs
+        return rs[0] if scalar else rs
 
     def cosmomc_theta(self):
         r"""

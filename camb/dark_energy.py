@@ -173,7 +173,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     def set_w_a_table(self, a, w):
         # check w array has elements that do not cross -1
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
-            raise ValueError('fluid dark energy model does not support w crossing -1')
+            raise CAMBError('fluid dark energy model does not support w crossing -1')
         super().set_w_a_table(a, w)
         
     def set_cs2_a_table(self, a, cs2):
@@ -201,6 +201,16 @@ class DarkEnergyPPF(DarkEnergyEqnOfState):
     # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
     _fortran_class_module_ = 'DarkEnergyPPF'
     _fortran_class_name_ = 'TDarkEnergyPPF'
+
+
+@fortran_class
+class DarkEnergyThawingPPF(DarkEnergyPPF):
+    """
+    Like above, but w(a) = max(-1, w0 + wa*(1-a)).
+    """
+    # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
+    _fortran_class_module_ = 'DarkEnergyThawingPPF'
+    _fortran_class_name_ = 'TDarkEnergyThawingPPF'
 
 
 @fortran_class
@@ -302,4 +312,4 @@ class EarlyQuintessence(Quintessence):
 
 
 # short names for models that support w/wa
-F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF})
+F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF, 'thawingppf': DarkEnergyThawingPPF})
