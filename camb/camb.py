@@ -156,7 +156,7 @@ def set_params(cp=None, verbose=False, **params):
     # set_classes allows redefinition of the classes used, so must be called before setting class parameters
     do_set(cp.set_accuracy)
     do_set(cp.set_classes)
-    #do_set(cp.EDF.set_params)
+    cp.EDF.set_params_idr()
     do_set(cp.DarkEnergy.set_params)
     do_set(cp.Reion.set_extra_params)
     do_set(cp.set_cosmology)

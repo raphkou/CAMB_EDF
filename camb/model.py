@@ -433,7 +433,7 @@ class CAMBparams(F2003Class):
                       standard_neutrino_neff=constants.default_nnu, TCMB=constants.COBE_CMBTemp,
                       tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
-                      theta_H0_range=(40, 100), setter_H0=None, amp_delta=None, cs2_1=1.0, cs2_2=1.0):
+                      theta_H0_range=(40, 100), setter_H0=None, N_idr=0):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -526,7 +526,7 @@ class CAMBparams(F2003Class):
                                     byref(c_int(neutrino_hierarchies.index(neutrino_hierarchy) + 1)),
                                     byref(c_int(int(num_massive_neutrinos))))
 
-        self.amp_delta = amp_delta
+        self.N_idr = N_idr
         
         if cosmomc_theta or thetastar:
             update_EDF(self, H0)
@@ -534,9 +534,8 @@ class CAMBparams(F2003Class):
                 raise CAMBError('Set H0=None when setting theta.')
             if cosmomc_theta and thetastar:
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
-            if amp_delta is not None and setter_H0 is None:
+            if N_idr != 0. and setter_H0 is None:
                 setter_H0 = update_EDF
-                self.EDF.set_edf_cs2(cs2_1, cs2_2)
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
             
@@ -546,8 +545,6 @@ class CAMBparams(F2003Class):
             if H0 < 1:
                 raise CAMBValueError('H0 is the value in km/s/Mpc, your value looks very small')
             self.H0 = H0
-            if amp_delta is not None:
-                self.EDF.set_edf_cs2(cs2_1, cs2_2)
             update_EDF(self, H0)
 
         if tau is not None:

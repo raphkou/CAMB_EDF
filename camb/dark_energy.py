@@ -57,6 +57,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.wa = wa
         self.cs2 = cs2
         self.validate_params()
+        
+    def set_params_idr(self):
+        self.w = 1./3.
+        self.wa = 0.
+        self.cs2 = 1./3.
             
     def set_edf_cs2(self, cs2_1, cs2_2):
         """
@@ -117,34 +122,13 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         return super().__getstate__()
     
 def update_EDF(pars, H0):
-    if pars.amp_delta != None and H0 != None:
-        Omega_i = pars.amp_delta@modes[0:len(pars.amp_delta)]
-        Omega_m = (pars.omch2+pars.ombh2)/(H0/100)**2
+    if pars.N_idr != 0 and H0 != None:
         Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
-        Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
-        Omega_r = Omega_g+Omega_neutrino
-        Omega_Lambda = 1-Omega_m-Omega_r
+        Omega_idr = 7./8*(4./11)**(4./3)*Omega_g*pars.N_idr
 
-        a = np.logspace(-7,0,250)
-        beta = 6
-        Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
-        a_vec = np.expand_dims(a,1)
-        Omega_i_a = Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
-        Omega_EDF = np.sum(Omega_i_a, axis=1)
-
-        ln_Omega_EDF = np.log(Omega_EDF)
-        ln_a = np.log(a)
-        dln_Omega_EDF = ln_Omega_EDF[1:]-ln_Omega_EDF[0:-1]
-        dln_a = ln_a[1:]-ln_a[0:-1]
-        w_EDF = -1.-1./3.*dln_Omega_EDF/dln_a
-        #w_EDF = np.append(w_EDF, w_EDF[-1])
-        w_EDF = np.insert(w_EDF, 0, -1)
-
-        pars.EDF.set_w_a_table(a,w_EDF)
-        pars.EDF.set_edf_initial_density(Omega_EDF[-1])
+        pars.EDF.set_edf_initial_density(Omega_idr)
         pars.H0 = H0
     else:
-        pars.EDF.set_w_a_table(np.array([1]),np.array([-1]))
         pars.EDF.set_edf_initial_density(0.)
         if H0 != None:
             pars.H0 = H0
