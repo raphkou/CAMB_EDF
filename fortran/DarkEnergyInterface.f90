@@ -32,7 +32,13 @@
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
-        real(dl) :: Omega_EDF !EDF initial density
+        ! Used for IEDE
+        real(dl) :: w_n = 1._dl
+        real(dl) :: fde_zc = 0._dl ! energy density fraction at a_c (not the same as peak dark energy fraction)
+        real(dl) :: zc !transition scale factor
+        real(dl) :: xi = 0._dl !Coupling parameter
+        real(dl) :: Omega_iede_zc ! density at zc
+        real(dl) :: Omega_iede ! density at z=0
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
     contains

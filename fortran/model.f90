@@ -151,7 +151,7 @@
         class(TRecombinationModel), allocatable :: Recomb
         class(TReionizationModel), allocatable :: Reion
         class(TDarkEnergyModel), allocatable :: DarkEnergy
-        class(TDarkEnergyEqnOfState), allocatable :: EDF
+        class(TDarkEnergyEqnOfState), allocatable :: IEDE
         class(TNonLinearModel), allocatable :: NonLinearModel
         type(AccuracyParams)     :: Accuracy
         type(SourceTermParams)   :: SourceTerms

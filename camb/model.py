@@ -8,7 +8,7 @@ from . import recombination as recomb
 from . import constants
 from .initialpower import InitialPower, SplinedInitialPower
 from .nonlinear import NonLinearModel
-from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, update_EDF, DarkEnergyFluid
+from .dark_energy import DarkEnergyModel, DarkEnergyEqnOfState, DarkEnergyFluid
 from .recombination import RecombinationModel
 from .reionization import ReionizationModel
 from .sources import SourceWindow
@@ -56,7 +56,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b', 'dopacity', 'ddopacity', 'dvisibility',
                     'ddvisibility']
-density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de', 'edf']
+density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de', 'iede']
 
 neutrino_hierarchy_normal = 'normal'
 neutrino_hierarchy_inverted = 'inverted'
@@ -214,7 +214,7 @@ class CAMBparams(F2003Class):
         ("Recomb", AllocatableObject(recomb.RecombinationModel)),
         ("Reion", AllocatableObject(reion.ReionizationModel)),
         ("DarkEnergy", AllocatableObject(DarkEnergyModel)),
-        ("EDF", AllocatableObject(DarkEnergyModel)),
+        ("IEDE", AllocatableObject(DarkEnergyModel)),
         ("NonLinearModel", AllocatableObject(NonLinearModel)),
         ("Accuracy", AccuracyParams),
         ("SourceTerms", SourceTermParams),
@@ -529,14 +529,10 @@ class CAMBparams(F2003Class):
         self.amp_delta = amp_delta
         
         if cosmomc_theta or thetastar:
-            update_EDF(self, H0)
             if H0 is not None:
                 raise CAMBError('Set H0=None when setting theta.')
             if cosmomc_theta and thetastar:
                 raise CAMBError('Cannot set both cosmomc_theta and thetastar')
-            if amp_delta is not None and setter_H0 is None:
-                setter_H0 = update_EDF
-                self.EDF.set_edf_cs2(cs2_1, cs2_2)
             self.set_H0_for_theta(cosmomc_theta or thetastar, cosmomc_approx=cosmomc_theta is not None,
                                   theta_H0_range=theta_H0_range, setter_H0=setter_H0)
             
@@ -546,9 +542,6 @@ class CAMBparams(F2003Class):
             if H0 < 1:
                 raise CAMBValueError('H0 is the value in km/s/Mpc, your value looks very small')
             self.H0 = H0
-            if amp_delta is not None:
-                self.EDF.set_edf_cs2(cs2_1, cs2_2)
-            update_EDF(self, H0)
 
         if tau is not None:
             if zrei is not None:
@@ -595,7 +588,7 @@ class CAMBparams(F2003Class):
 
     def set_classes(self, dark_energy_model=None, initial_power_model=None,
                     non_linear_model=None, recombination_model=None,
-                    reionization_model=None):
+                    reionization_model=None, IEDE=False):
         """
         Change the classes used to implement parts of the model.
 
@@ -607,6 +600,8 @@ class CAMBparams(F2003Class):
         """
         if dark_energy_model:
             self.DarkEnergy = self.make_class_named(dark_energy_model, DarkEnergyModel)
+        if IEDE == True:
+            self.IEDE = self.make_class_named('IEDE', DarkEnergyEqnOfState)
         if initial_power_model:
             self.InitPower = self.make_class_named(initial_power_model, InitialPower)
         if non_linear_model:

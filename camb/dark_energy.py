@@ -4,10 +4,6 @@ from ctypes import c_int, c_double, byref, POINTER, c_bool
 from camb.constants import kappa, c, sigma_boltz, Mpc
 import os
 
-folder = os.path.normpath(os.path.join(os.path.dirname(__file__), '../data/'))
-modes = np.load(os.path.join(folder, "modes_EDF.npy"))
-a_i = np.load(os.path.join(folder, "a_i_EDF.npy"))
-
 class DarkEnergyModel(F2003Class):
     """
     Abstract base class for dark energy model implementations.
@@ -39,13 +35,18 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
-        ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
+        ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
+        ("w_n", c_double, "effective equation of state parameter"),
+        ("fde_zc", c_double, "energy density fraction at z=zc"),
+        ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
+        ("xi", c_double, "coupling parameter")
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
+    
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, w_n=1., fde_zc=0., zc=0., xi=0.):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -56,15 +57,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
+        self.w_n = w_n
+        self.fde_zc = fde_zc
+        self.zc = zc
+        self.xi = xi
         self.validate_params()
-            
-    def set_edf_cs2(self, cs2_1, cs2_2):
-        """
-         Set the sound speed parameters for EDF
-        """
-        a_cs2 = np.array([1e-5,1e-3])
-        cs2 = np.array([cs2_1,cs2_2])
-        self.set_cs2_a_table(a_cs2,cs2)
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
@@ -115,40 +112,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if self.use_tabulated_w:
             raise TypeError("Cannot save class with splines")
         return super().__getstate__()
-    
-def update_EDF(pars, H0):
-    if pars.amp_delta != None and H0 != None:
-        Omega_i = pars.amp_delta@modes[0:len(pars.amp_delta)]
-        Omega_m = (pars.omch2+pars.ombh2)/(H0/100)**2
-        Omega_g = kappa/c**2*4*sigma_boltz/c**3*pars.TCMB**4*Mpc**2/(3*(H0*1e3)**2)*c**2
-        Omega_neutrino = 7./8*(4./11)**(4./3)*Omega_g*pars.N_eff
-        Omega_r = Omega_g+Omega_neutrino
-        Omega_Lambda = 1-Omega_m-Omega_r
-
-        a = np.logspace(-7,0,250)
-        beta = 6
-        Omega_lcdm_i = Omega_m/a_i**3+Omega_r/a_i**4+Omega_Lambda
-        a_vec = np.expand_dims(a,1)
-        Omega_i_a = Omega_i*Omega_lcdm_i*(2*a_i**beta/(a_vec**beta+a_i**beta))**(6/beta)
-        Omega_EDF = np.sum(Omega_i_a, axis=1)
-
-        ln_Omega_EDF = np.log(Omega_EDF)
-        ln_a = np.log(a)
-        dln_Omega_EDF = ln_Omega_EDF[1:]-ln_Omega_EDF[0:-1]
-        dln_a = ln_a[1:]-ln_a[0:-1]
-        w_EDF = -1.-1./3.*dln_Omega_EDF/dln_a
-        #w_EDF = np.append(w_EDF, w_EDF[-1])
-        w_EDF = np.insert(w_EDF, 0, -1)
-
-        pars.EDF.set_w_a_table(a,w_EDF)
-        pars.EDF.set_edf_initial_density(Omega_EDF[-1])
-        pars.H0 = H0
-    else:
-        pars.EDF.set_w_a_table(np.array([1]),np.array([-1]))
-        pars.EDF.set_edf_initial_density(0.)
-        if H0 != None:
-            pars.H0 = H0
-
 
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
@@ -160,8 +123,6 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 
     _fortran_class_module_ = 'DarkEnergyFluid'
     _fortran_class_name_ = 'TDarkEnergyFluid'
-    
-    _fields_ = [("Omega_EDF", c_double, "EDF density at z=0")]
 
 
     def validate_params(self):
@@ -181,10 +142,6 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_a_table(a, cs2)
-        
-    def set_edf_initial_density(self, Omega_EDF):
-        self.Omega_EDF = Omega_EDF
-
 
 
 @fortran_class
@@ -235,6 +192,15 @@ class AxionEffectiveFluid(DarkEnergyModel):
         self.zc = zc
         if theta_i is not None:
             self.theta_i = theta_i
+            
+@fortran_class
+class IEDE(DarkEnergyEqnOfState):
+    """
+    Interacting early dark energy that decays to dark matter
+    """
+    
+    _fortran_class_name_ = 'TIEDE'
+    _fortran_class_module_ = 'DarkEnergyFluid'
 
 
 # base class for scalar field quintessence models

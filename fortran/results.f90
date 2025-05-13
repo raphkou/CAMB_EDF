@@ -173,10 +173,10 @@
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhoedf,grhornomass,grhok
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhoiede,grhoiede_zc,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
-        real(dl) Omega_de
+        real(dl) Omega_de, Omega_iede_zc, Omega_iede
         real(dl) curv, curvature_radius, Ksign !curvature_radius = 1/sqrt(|curv|), Ksign = 1,0 or -1
         real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
         real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
@@ -235,6 +235,8 @@
 
         Type(TTimeSources), allocatable :: ScalarTimeSources
         integer :: Scalar_C_last = C_PhiE
+        
+        Type(TCubicSpline) :: X_cdm_spline
 
 
     contains
@@ -262,9 +264,15 @@
     procedure :: get_lmax_lensed => CAMBdata_get_lmax_lensed
     procedure :: get_zstar => CAMBdata_get_zstar
     procedure :: DarkEnergyStressEnergy => CAMBdata_DarkEnergyStressEnergy
+    procedure :: IEDEStressEnergy => CAMBdata_IEDEStressEnergy
     procedure :: SetParams => CAMBdata_SetParams
     procedure :: Free => CAMBdata_Free
     procedure :: grho_no_de
+    procedure :: grho_cdm
+    procedure :: grho_no_de_cdm
+    procedure :: X_cdm
+    procedure :: integrand_X_cdm
+    procedure :: eval_X_cdm_spline
     procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
@@ -321,6 +329,12 @@
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     Type(TRedWin), pointer :: Win
     logical back_only
+    real(dl) a_c
+    real(dl) :: log_a_min, log_a_max
+    integer :: nb_step
+    parameter (nb_step = 100)
+    integer i_a
+    real(dl) :: log_a(nb_step), X_cdm_a(nb_step)
     !Constants in SI units
 
     global_error_flag = 0
@@ -427,6 +441,18 @@
             this%Ksign =sign(1._dl,this%curv)
             this%curvature_radius=1._dl/sqrt(abs(this%curv))
         end if
+        
+        call this%CP%IEDE%Init(this)
+        this%CP%IEDE%is_cosmological_constant = .false.
+        
+        log_a_min = -6._dl
+        log_a_max = 0._dl
+        do i_a = 1, nb_step
+            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
+            X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
+        end do
+        call this%X_cdm_spline%Init(log_a, X_cdm_a)
+        
         !  grho gives the contribution to the expansion rate from: (g) photons,
         !  (r) one flavor of relativistic neutrino (2 degrees of freedom),
         !  (m) nonrelativistic matter (for Omega=1).  grho is actually
@@ -455,10 +481,21 @@
         this%grhoc=this%grhocrit*this%CP%omch2/h2
         this%grhob=this%grhocrit*this%CP%ombh2/h2
         this%grhok=this%grhocrit*this%CP%omk
-        this%grhoedf=this%grhocrit*this%CP%EDF%Omega_EDF
         this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
-            - (this%grhornomass + this%grhog)/this%grhocrit-this%CP%EDF%Omega_EDF
+            - (this%grhornomass + this%grhog)/this%grhocrit
+        a_c = 1 / (1 + this%CP%IEDE%zc)
+
+        this%Omega_iede_zc = this%CP%IEDE%fde_zc * (this%Omega_de + this%grho_no_de_cdm(a_c)/this%grhocrit/a_c**4 + this%CP%omch2/h2/a_c**3) & 
+            / (1 - this%CP%IEDE%fde_zc * (this%eval_X_cdm_spline(a_c) + 1 - 2*a_c**(3*(1+this%CP%IEDE%w_n + this%CP%IEDE%xi))/(1+a_c**(3*(1+this%CP%IEDE%w_n)))))
+        this%grhoiede_zc = this%grhocrit*this%Omega_iede_zc
+        this%Omega_iede = 2 * this%Omega_iede_zc * a_c**(3 * (1 + this%CP%IEDE%w_n + this%CP%IEDE%xi)) &
+            / (1 + a_c**(3 * (1 + this%CP%IEDE%w_n)))
+        this%grhoiede = this%grhocrit*this%Omega_iede
+        this%Omega_de = this%Omega_de - this%Omega_iede
         this%grhov=this%grhocrit*this%Omega_de
+        
+        this%CP%IEDE%Omega_iede = this%Omega_iede
+        this%CP%IEDE%Omega_iede_zc = this%Omega_iede_zc
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
@@ -492,8 +529,7 @@
             this%nu_masses = 0
         end if
         call this%CP%DarkEnergy%Init(this)
-        call this%CP%EDF%Init(this)
-        this%CP%EDF%is_cosmological_constant = .false.
+        
         if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
             this%chi0=this%rofChi(this%tau0/this%curvature_radius)
@@ -934,14 +970,14 @@
     class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a_arr(n)
-    real(dl) :: grhov_t, grhoedf_t, rhonu, grhonu, a
+    real(dl) :: grhov_t, grhoiede_t, rhonu, grhonu, a
     real(dl), intent(out) :: densities(9,n)
     integer nu_i,i
 
     do i=1, n
         a = a_arr(i)
         call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
-        call this%CP%EDF%BackgroundDensityAndPressure(this%grhoedf, a, grhoedf_t)
+        call this%CP%IEDE%BackgroundDensityAndPressure(this%grhoiede, a, grhoiede_t)
         grhonu = 0
 
         if (this%CP%Num_Nu_massive /= 0) then
@@ -953,13 +989,13 @@
         end if
 
         densities(2,i) = this%grhok * a**2
-        densities(3,i) = this%grhoc * a
+        densities(3,i) = this%grho_cdm(a)
         densities(4,i) = this%grhob * a
         densities(5,i) = this%grhog
         densities(6,i) = this%grhornomass
         densities(7,i) = grhonu
         densities(8,i) = grhov_t*a**2
-        densities(9,i) = grhoedf_t*a**2
+        densities(9,i) = grhoiede_t*a**2
         densities(1,i) = sum(densities(2:8,i))
     end do
 
@@ -1072,19 +1108,19 @@
 
     end subroutine CAMBdata_DarkEnergyStressEnergy
     
-    subroutine CAMBdata_EDFStressEnergy(this, a, grhoedf_t, w, n)
+    subroutine CAMBdata_IEDEStressEnergy(this, a, grhoiede_t, w, n)
     class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a(n)
-    real(dl), intent(out) :: grhoedf_t(n), w(n)
+    real(dl), intent(out) :: grhoiede_t(n), w(n)
     integer i
 
     do i=1, n
-        call this%CP%EDF%BackgroundDensityAndPressure(1._dl, a(i), grhoedf_t(i), w(i))
+        call this%CP%IEDE%BackgroundDensityAndPressure(1._dl, a(i), grhoiede_t(i), w(i))
     end do
-    grhoedf_t = grhoedf_t/a**2
+    grhoiede_t = grhoiede_t/a**2
 
-    end subroutine CAMBdata_EDFStressEnergy
+    end subroutine CAMBdata_IEDEStressEnergy
 
     function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
     class(CAMBdata) :: this
@@ -1230,6 +1266,18 @@
     reion_doptdepth_dz = this%CP%Reion%x_e(z)*this%akthom*dtauda(this,1._dl/(1._dl+z))
 
     end function reion_doptdepth_dz
+    
+    function grho_cdm(this, a)
+    !  Return 8*pi*G*rho_cdm*a**4
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: a_c
+    real(dl) :: grho_cdm
+    
+    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
+    grho_cdm = (this%grhoc + this%grhoiede_zc * a_c**3 * this%eval_X_cdm_spline(a)) * a 
+    
+    end function grho_cdm
 
     function grho_no_de(this, a) result(grhoa2)
     !  Return 8*pi*G*rho_no_de*a**4 where rho_no_de includes everything except dark energy.
@@ -1238,7 +1286,7 @@
     real(dl) grhoa2, rhonu
     integer nu_i
 
-    grhoa2 = this%grhok * a**2 + (this%grhoc + this%grhob) * a + this%grhog + this%grhornomass
+    grhoa2 = this%grhok * a**2 + this%grhob * a + this%grho_cdm(a) + this%grhog + this%grhornomass
 
     if (this%CP%Num_Nu_massive /= 0) then
         !Get massive neutrino density relative to massless
@@ -1249,6 +1297,62 @@
     end if
 
     end function grho_no_de
+    
+    function grho_no_de_cdm(this, a) result(grhoa2)
+    !  Return 8*pi*G*rho_no_de_cdm*a**4 where rho_no_de includes everything except dark energy and cold dark matter.
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) grhoa2, rhonu
+    integer nu_i
+
+    grhoa2 = this%grhok * a**2 + this%grhob * a + this%grhog + this%grhornomass
+
+    if (this%CP%Num_Nu_massive /= 0) then
+        !Get massive neutrino density relative to massless
+        do nu_i = 1, this%CP%nu_mass_eigenstates
+            call ThermalNuBack%rho(a * this%nu_masses(nu_i), rhonu)
+            grhoa2 = grhoa2 + rhonu * this%grhormass(nu_i)
+        end do
+    end if
+
+    end function grho_no_de_cdm
+    
+    function integrand_X_cdm(this, x)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: x
+    real(dl) :: a_c
+    real(dl) integrand_X_cdm
+    
+    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
+    integrand_X_cdm = 10**(3*x)*(a_c/10**x)**(3*this%CP%IEDE%xi) / (1+(10**x/a_c)**(3*(1+this%CP%IEDE%w_n)))*dlog(10._dl)
+    
+    end function integrand_X_cdm
+    
+    function X_cdm(this, a)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: a_c
+    real(dl) :: X_cdm
+    
+    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
+    X_cdm = -2._dl * this%CP%IEDE%xi * Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)/a_c**3
+
+    end function X_cdm
+
+    
+    function eval_X_cdm_spline(this, a)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: eval_X_cdm_spline
+    real(dl) :: al
+    
+    al=dlog10(a)
+    if(al <= this%X_cdm_spline%Xmin_interp) then
+        eval_X_cdm_spline= this%X_cdm_spline%F(1)
+    else
+        eval_X_cdm_spline = this%X_cdm_spline%Value(al)
+    endif
+    end function eval_X_cdm_spline
 
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this

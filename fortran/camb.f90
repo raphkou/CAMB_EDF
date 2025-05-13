@@ -214,7 +214,7 @@
 
     allocate(THalofit::P%NonLinearModel)
     allocate(TDarkEnergyFluid::P%DarkEnergy)
-    allocate(TDarkEnergyFluid::P%EDF)
+    allocate(TIEDE::P%IEDE)
     allocate(TInitialPowerLaw::P%InitPower)
     allocate(TRecfast::P%Recomb)
     allocate(TTanhReionization::P%Reion)
