@@ -372,8 +372,8 @@
     if(a == 0.d0)then
         TIEDE_grho_de = 0.d0
     else
-        TIEDE_grho_de = 2 * this%Omega_iede_zc / this%Omega_iede * a**4 * (this%a_c/a)**(3*this%xi) &
-            / (1._dl + (a/this%a_c)**this%pow)
+        TIEDE_grho_de = this%Omega_iede_zc / this%Omega_iede * a**4 * (2._dl/((a/this%a_c)**this%pow+1._dl))**(1._dl/(1._dl+this%xi))
+
     endif
     end function TIEDE_grho_de
 
@@ -392,13 +392,13 @@
     deriv  = (1._dl + this%w_n)*this%pow*(this%a_c/a)**this%pow/(1+(this%a_c/a)**this%pow)**2
     
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w + this%xi / 3) * Hv3_over_k) &
+    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) / (1 + this%xi) * Hv3_over_k) &
         -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z - adotoa*deriv* Hv3_over_k
 
     !velocity perturbation
     if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
-            k * cs2_lam * y(w_ix) / (1 + w) + adotoa * this%xi * (1 + cs2_lam) * y(w_ix + 1) / (1 + w)
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * w) * y(w_ix + 1) + &
+            k * cs2_lam * y(w_ix) / (1 + w) + 3 * adotoa / (1 + this%xi) * (cs2_lam - w - this%xi * (1 + w)) * y(w_ix + 1)
     else
         ayprime(w_ix + 1) = 0
     end if

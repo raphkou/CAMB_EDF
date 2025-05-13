@@ -137,6 +137,7 @@
     OutData%CP%Reion%Reionization = Params%Reion%Reionization
     OutData%CP%Transfer%high_precision = Params%Transfer%high_precision
     OutData%CP%WantDerivedParameters = Params%WantDerivedParameters
+    OutData%CP%use_iede = Params%use_iede
 
     if (.not. OutData%OnlyTransfer .and. Params%WantCls .and. Params%WantScalars) then
         if (Params%DoLensing .and. global_error_flag==0) then

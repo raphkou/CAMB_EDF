@@ -443,15 +443,18 @@
         end if
         
         call this%CP%IEDE%Init(this)
+
         this%CP%IEDE%is_cosmological_constant = .false.
         
-        log_a_min = -6._dl
-        log_a_max = 0._dl
-        do i_a = 1, nb_step
-            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
-            X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
-        end do
-        call this%X_cdm_spline%Init(log_a, X_cdm_a)
+        if (this%CP%use_iede) then
+            log_a_min = -6._dl
+            log_a_max = 0._dl
+            do i_a = 1, nb_step
+                log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
+                X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
+            end do
+            call this%X_cdm_spline%Init(log_a, X_cdm_a)
+        end if
         
         !  grho gives the contribution to the expansion rate from: (g) photons,
         !  (r) one flavor of relativistic neutrino (2 degrees of freedom),
@@ -483,19 +486,21 @@
         this%grhok=this%grhocrit*this%CP%omk
         this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
             - (this%grhornomass + this%grhog)/this%grhocrit
-        a_c = 1 / (1 + this%CP%IEDE%zc)
-
-        this%Omega_iede_zc = this%CP%IEDE%fde_zc * (this%Omega_de + this%grho_no_de_cdm(a_c)/this%grhocrit/a_c**4 + this%CP%omch2/h2/a_c**3) & 
-            / (1 - this%CP%IEDE%fde_zc * (this%eval_X_cdm_spline(a_c) + 1 - 2*a_c**(3*(1+this%CP%IEDE%w_n + this%CP%IEDE%xi))/(1+a_c**(3*(1+this%CP%IEDE%w_n)))))
-        this%grhoiede_zc = this%grhocrit*this%Omega_iede_zc
-        this%Omega_iede = 2 * this%Omega_iede_zc * a_c**(3 * (1 + this%CP%IEDE%w_n + this%CP%IEDE%xi)) &
-            / (1 + a_c**(3 * (1 + this%CP%IEDE%w_n)))
-        this%grhoiede = this%grhocrit*this%Omega_iede
-        this%Omega_de = this%Omega_de - this%Omega_iede
-        this%grhov=this%grhocrit*this%Omega_de
         
-        this%CP%IEDE%Omega_iede = this%Omega_iede
-        this%CP%IEDE%Omega_iede_zc = this%Omega_iede_zc
+        if (this%CP%use_iede) then
+            a_c = 1 / (1 + this%CP%IEDE%zc)
+
+            this%Omega_iede_zc = this%CP%IEDE%fde_zc * (this%Omega_de + this%grho_no_de_cdm(a_c)/this%grhocrit/a_c**4 + this%CP%omch2/h2/a_c**3) & 
+                / (1 - this%CP%IEDE%fde_zc * (this%eval_X_cdm_spline(a_c) + 1 - (2/((1._dl/a_c)**(3*(1+this%CP%IEDE%w_n))+1._dl))**(1._dl/(1._dl+this%CP%IEDE%xi))))
+            this%grhoiede_zc = this%grhocrit*this%Omega_iede_zc
+            this%Omega_iede = this%Omega_iede_zc * (2._dl/((1._dl/a_c)**(3*(1+this%CP%IEDE%w_n))+1._dl))**(1._dl/(1._dl+this%CP%IEDE%xi))
+            this%grhoiede = this%grhocrit*this%Omega_iede
+            this%Omega_de = this%Omega_de - this%Omega_iede
+            this%CP%IEDE%Omega_iede = this%Omega_iede
+            this%CP%IEDE%Omega_iede_zc = this%Omega_iede_zc
+        end if
+        
+        this%grhov=this%grhocrit*this%Omega_de
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
@@ -996,7 +1001,7 @@
         densities(7,i) = grhonu
         densities(8,i) = grhov_t*a**2
         densities(9,i) = grhoiede_t*a**2
-        densities(1,i) = sum(densities(2:8,i))
+        densities(1,i) = sum(densities(2:9,i))
     end do
 
     end subroutine CAMBdata_GetBackgroundDensities
@@ -1274,8 +1279,12 @@
     real(dl) :: a_c
     real(dl) :: grho_cdm
     
-    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-    grho_cdm = (this%grhoc + this%grhoiede_zc * a_c**3 * this%eval_X_cdm_spline(a)) * a 
+    if (this%CP%use_iede) then
+        a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
+        grho_cdm = (this%grhoc + this%grhoiede_zc * a_c**3 * this%eval_X_cdm_spline(a)) * a
+    else
+        grho_cdm = this%grhoc * a
+    end if
     
     end function grho_cdm
 
@@ -1324,7 +1333,7 @@
     real(dl) integrand_X_cdm
     
     a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-    integrand_X_cdm = 10**(3*x)*(a_c/10**x)**(3*this%CP%IEDE%xi) / (1+(10**x/a_c)**(3*(1+this%CP%IEDE%w_n)))*dlog(10._dl)
+    integrand_X_cdm = 10**(3*x)*(10**x/a_c)**(3*(1._dl+this%CP%IEDE%w_n)) / (1+(10**x/a_c)**(3*(1+this%CP%IEDE%w_n)))**((2._dl+this%CP%IEDE%xi)/(1._dl+this%CP%IEDE%xi))*dlog(10._dl)
     
     end function integrand_X_cdm
     
@@ -1335,7 +1344,7 @@
     real(dl) :: X_cdm
     
     a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-    X_cdm = -2._dl * this%CP%IEDE%xi * Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)/a_c**3
+    X_cdm = 3._dl * 2._dl**(1._dl/(1._dl+this%CP%IEDE%xi)) * this%CP%IEDE%xi / (1._dl+this%CP%IEDE%xi) * (1._dl+this%CP%IEDE%w_n)/a_c**3 * Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
 
     end function X_cdm
 

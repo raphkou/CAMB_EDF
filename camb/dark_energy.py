@@ -39,7 +39,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("w_n", c_double, "effective equation of state parameter"),
         ("fde_zc", c_double, "energy density fraction at z=zc"),
         ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
-        ("xi", c_double, "coupling parameter")
+        ("xi", c_double, "coupling parameter"),
+        ("use_iede", c_bool, "whether to use iede")
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),

@@ -146,6 +146,7 @@
         real(dl)  :: Nu_mass_degeneracies(max_nu)
         real(dl)  :: Nu_mass_fractions(max_nu) !The ratios of the total densities
         integer   :: Nu_mass_numbers(max_nu) !physical number per eigenstate
+        logical   :: use_iede = .true. !use interacting early dark energy
 
         class(TInitialPower), allocatable :: InitPower
         class(TRecombinationModel), allocatable :: Recomb

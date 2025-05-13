@@ -241,7 +241,8 @@ class CAMBparams(F2003Class):
          "When interpolating use a fiducial spectrum shape to define ratio to spline"),
         ("min_l_logl_sampling", c_int, "Minimum L to use log sampling for L"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
-        ("CustomSources", CustomSources)
+        ("CustomSources", CustomSources),
+        ("use_iede", c_bool, "Use iede")
     ]
 
     _fortran_class_module_ = 'model'

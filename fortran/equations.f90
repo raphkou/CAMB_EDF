@@ -2335,12 +2335,18 @@
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
 
-    cs2_lam_iede = State%CP%IEDE%cs2_de_a(a)
-    call State%CP%IEDE%PerturbationEvolve(ayprime, w_iede_t, &
-        EV%w_iede, a, adotoa, k, z, ay, cs2_lam_iede)
+    if (State%CP%use_iede) then
+        cs2_lam_iede = State%CP%IEDE%cs2_de_a(a)
+        call State%CP%IEDE%PerturbationEvolve(ayprime, w_iede_t, &
+            EV%w_iede, a, adotoa, k, z, ay, cs2_lam_iede)
+    end if
 
     !  CDM equation of motion
-    clxcdot=-k*z+adotoa*State%CP%IEDE%xi*grhoiede_t/grhoc_t*(ay(EV%w_iede)-ay(ix_clxc))
+    if (State%CP%use_iede) then
+        clxcdot=-k*z-3*adotoa*(1+w_iede_t)*State%CP%IEDE%xi/(1+State%CP%IEDE%xi)*grhoiede_t/grhoc_t*(ay(EV%w_iede)-ay(ix_clxc))
+    else
+        clxcdot=-k*z
+    end if
     ayprime(ix_clxc)=clxcdot
 
     !  Baryon equation of motion.
