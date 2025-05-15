@@ -7,13 +7,12 @@
     implicit none
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: dtauda, grhoa2, grhov_t, grhoiede_t
+    real(dl) :: dtauda, grhoa2, grhov_t
 
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
-    call this%CP%IEDE%BackgroundDensityAndPressure(this%grhoiede, a, grhoiede_t)
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + grhoiede_t * a**2
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + this%grho_iede(a)
 
     if (grhoa2 <= 0) then
         call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
@@ -2231,7 +2230,8 @@
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
     
-    call State%CP%IEDE%BackgroundDensityAndPressure(State%grhoiede, a, grhoiede_t, w_iede_t)
+    grhoiede_t = State%grho_iede(a)/a2
+    w_iede_t = 1._dl/3._dl
     
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
@@ -2336,18 +2336,11 @@
         EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
 
     if (State%CP%use_iede) then
-        cs2_lam_iede = State%CP%IEDE%cs2_de_a(a)
-        call State%CP%IEDE%PerturbationEvolve(ayprime, w_iede_t, &
-            EV%w_iede, a, adotoa, k, z, ay, cs2_lam_iede)
+        ayprime(EV%w_iede) = -4._dl/3._dl*k*ay(EV%w_iede+1)-4._dl/3._dl*k*z+State%CP%IEDE%xi*adotoa*grhoc_t/grhoiede_t*(ay(ix_clxb)-ay(EV%w_iede))
+        ayprime(EV%w_iede+1) = k * ay(EV%w_iede) / 4._dl - State%CP%IEDE%xi*adotoa*grhoc_t/grhoiede_t*ay(EV%w_iede+1)
     end if
 
-    !  CDM equation of motion
-    if (State%CP%use_iede) then
-        clxcdot=-k*z-3*adotoa*(1+w_iede_t)*State%CP%IEDE%xi/(1+State%CP%IEDE%xi)*grhoiede_t/grhoc_t*(ay(EV%w_iede)-ay(ix_clxc))
-    else
-        clxcdot=-k*z
-    end if
-    ayprime(ix_clxc)=clxcdot
+    ayprime(ix_clxc)=-k*z
 
     !  Baryon equation of motion.
     clxbdot=-k*(z+vb)
@@ -2909,8 +2902,9 @@
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
     call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
-    call CP%IEDE%BackgroundDensityAndPressure(State%grhoiede, a, grhoiede_t, w_iede_t)
-
+    grhoiede_t = State%grho_iede(a)/a2
+    w_iede_t = 1._dl/3._dl
+    
     grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t+grhoiede_t
     gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t+grhoiede_t*w_iede_t
 

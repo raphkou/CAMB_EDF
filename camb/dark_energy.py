@@ -36,9 +36,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
-        ("w_n", c_double, "effective equation of state parameter"),
-        ("fde_zc", c_double, "energy density fraction at z=zc"),
-        ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
+        ("omidrh2", c_double, "density of idr"),
         ("xi", c_double, "coupling parameter"),
         ("use_iede", c_bool, "whether to use iede")
     ]
@@ -47,7 +45,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
     
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, w_n=1., fde_zc=0., zc=0., xi=0.):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, omidrh2=0., xi=0.):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -58,9 +56,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
-        self.w_n = w_n
-        self.fde_zc = fde_zc
-        self.zc = zc
+        self.omidrh2 = omidrh2
         self.xi = xi
         self.validate_params()
 
