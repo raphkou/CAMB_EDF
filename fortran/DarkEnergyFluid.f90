@@ -253,12 +253,9 @@
     integer, intent(in) :: w_ix
     real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
 
-    if (this%w_n < 0.9999) then
-        fac = 2*a**(2-6*this%w_n)*this%freq**2
-        cs2 = (fac*(this%n-1) + k**2)/(fac*(this%n+1) + k**2)
-    else
-        cs2 = 1
-    end if
+
+    cs2 = 0._dl
+  
     apow = a**this%pow
     acpow = this%acpow
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
