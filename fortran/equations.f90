@@ -7,13 +7,12 @@
     implicit none
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: dtauda, grhoa2, grhov_t, grhoiede_t
+    real(dl) :: dtauda, grhoa2, grhov_t
 
     call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
-    call this%CP%IEDE%BackgroundDensityAndPressure(this%grhoiede, a, grhoiede_t)
 
     !  8*pi*G*rho*a**4.
-    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2 + grhoiede_t * a**2
+    grhoa2 = this%grho_no_de(a) +  grhov_t * a**2
 
     if (grhoa2 <= 0) then
         call GlobalError('Universe stops expanding before today (recollapse not supported)', error_unsupported_params)
@@ -71,7 +70,6 @@
         logical :: is_cosmological_constant
 
         integer w_ix !Index of two quintessence equations
-        integer w_iede !Index of IEDE equations
         integer Tg_ix !index of matter temerature perturbation
         integer reion_line_ix !index of matter temerature perturbation
 
@@ -154,22 +152,22 @@
     end type EvolutionVars
 
     ABSTRACT INTERFACE
-    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, w_iede, cs2_iede, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoiede_t,grhonu_t, &
+    SUBROUTINE TSource_func(sources, tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, clxiede, delta_p_b, &
-        dgq, qg, qr, qde, qiede, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc,clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
         tau0, tau_maxvis, Kf, f_K)
     use precision
     real(dl), intent(out) :: sources(:)
-    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam, w_iede, cs2_iede, &
-        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoiede_t,grhonu_t, &
+    real(dl), intent(in) :: tau, a, adotoa, grho, gpres,w_lam, cs2_lam, &
+        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
         k,etak, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, clxiede, delta_p_b, &
-        dgq, qg, qr, qde, qiede, vb, qgdot, qrdot, vbdot, &
+        dgrho, clxg,clxb,clxc, clxr, clxnu, clxde, delta_p_b, &
+        dgq, qg, qr, qde, vb, qgdot, qrdot, vbdot, &
         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -563,11 +561,6 @@
     else
         EV%w_ix = 0
     end if
-    
-    !Early dark fluid
-    EV%w_iede = neq + 1
-    neq = neq + CP%IEDE%num_perturb_equations
-    maxeq = maxeq + CP%IEDE%num_perturb_equations
 
     !Sources
     if (CP%Evolve_delta_xe) then
@@ -659,11 +652,6 @@
         yout(EVOut%w_ix:EVOut%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1)
         
-    ! Interacting Early Dark Energy
-    if (CP%IEDE%num_perturb_equations > 0) &
-        yout(EVOut%w_iede:EVOut%w_iede + CP%IEDE%num_perturb_equations - 1) = &
-        y(EV%w_iede:EV%w_iede + CP%IEDE%num_perturb_equations - 1)
-
     if (.not. EV%no_phot_multpoles .and. .not. EVout%no_phot_multpoles) then
         if (EV%TightCoupling .or. EVOut%TightCoupling) then
             lmax=1
@@ -1781,8 +1769,8 @@
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12,i_clxiede=13,i_viede=14
-    integer, parameter :: i_max = i_viede
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12
+    integer, parameter :: i_max = i_vde
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
@@ -1952,14 +1940,6 @@
             a, tau,  k)
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
-    end if
-    
-    ! IEDE
-    if (CP%IEDE%num_perturb_equations > 0) then
-        call CP%IEDE%PerturbationInitial(InitVec(i_clxiede:i_clxiede + CP%IEDE%num_perturb_equations - 1), &
-            a, tau,  k)
-        y(EV%w_iede:EV%w_iede + CP%IEDE%num_perturb_equations - 1) = &
-            InitVec(i_clxiede:i_clxiede + CP%IEDE%num_perturb_equations - 1)
     end if
 
     if (CP%Evolve_delta_Ts) then
@@ -2174,8 +2154,8 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoiede_t,grhonu_t,sigma,polter
-    real(dl) w_dark_energy_t, w_iede_t !equation of state of dark energy and interacting ede
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
+    real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
     real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
@@ -2196,7 +2176,7 @@
     real(dl) phidot, polterdot, polterddot, octg, octgdot
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
-    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam, dgrho_iede, dgq_iede, cs2_iede, cs2_lam_iede
+    real(dl) dgrho_de, dgq_de, cs2_de, cs2_lam
 
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2231,8 +2211,6 @@
         call State%CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
     end if
     
-    call State%CP%IEDE%BackgroundDensityAndPressure(State%grhoiede, a, grhoiede_t, w_iede_t)
-    
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
@@ -2247,7 +2225,7 @@
     end if
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
-    grho = grho_matter+grhor_t+grhog_t+grhov_t+grhoiede_t
+    grho = grho_matter+grhor_t+grhog_t+grhov_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
     if (State%flat) then
@@ -2310,12 +2288,6 @@
         dgrho = dgrho + dgrho_de
         dgq = dgq + dgq_de
     end if
-    
-    call State%CP%IEDE%PerturbedStressEnergy(dgrho_iede, dgq_iede, &
-            a, dgq, dgrho, grho, grhoiede_t, w_iede_t, gpres_noDE, etak, &
-            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_iede)
-    dgrho = dgrho + dgrho_iede
-    dgq = dgq + dgq_iede
 
     !  Get sigma (shear) and z from the constraints
     ! have to get z from eta for numerical stability
@@ -2335,18 +2307,8 @@
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
 
-    if (State%CP%use_iede) then
-        cs2_lam_iede = State%CP%IEDE%cs2_de_a(a)
-        call State%CP%IEDE%PerturbationEvolve(ayprime, w_iede_t, &
-            EV%w_iede, a, adotoa, k, z, ay, cs2_lam_iede)
-    end if
+    clxcdot=-k*z-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))
 
-    !  CDM equation of motion
-    if (State%CP%use_iede) then
-        clxcdot=-k*z-3*adotoa*(1+w_iede_t)*State%CP%IEDE%xi/(1+State%CP%IEDE%xi)*grhoiede_t/grhoc_t*(ay(EV%w_iede)-ay(ix_clxc))
-    else
-        clxcdot=-k*z
-    end if
     ayprime(ix_clxc)=clxcdot
 
     !  Baryon equation of motion.
@@ -2390,7 +2352,7 @@
 
     if (EV%TightCoupling) then
         !  ddota/a
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t + w_iede_t*grhoiede_t
+        gpres = gpres_noDE + w_dark_energy_t*grhov_t
         adotdota=(adotoa*adotoa-gpres)/2
 
         pig = 32._dl/45/opacity*k*(sigma+vb)
@@ -2725,14 +2687,11 @@
             call MassiveNuVarsOut(EV,ay,ayprime,a, adotoa, dgpi=dgpi, clxnu_all=clxnu, &
                 dgpi_diff=dgpi_diff, pidot_sum=pidot_sum)
         end if
-        gpres = gpres_noDE + w_dark_energy_t*grhov_t + w_iede_t*grhoiede_t
+        gpres = gpres_noDE + w_dark_energy_t*grhov_t
         diff_rhopi = pidot_sum - (4*dgpi+ dgpi_diff)*adotoa + &
             State%CP%DarkEnergy%diff_rhopi_Add_Term(dgrho_de, dgq_de, grho, &
             gpres, w_dark_energy_t, State%grhok, adotoa, &
-            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix) + &
-            State%CP%IEDE%diff_rhopi_Add_Term(dgrho_iede, dgq_iede, grho, &
-            gpres, w_iede_t, State%grhok, adotoa, &
-            EV%kf(1), k, grhoiede_t, z, k2, ayprime, ay, EV%w_iede)
+            EV%kf(1), k, grhov_t, z, k2, ayprime, ay, EV%w_ix)
         phi = -((dgrho +3*dgq*adotoa/k)/EV%Kf(1) + dgpi)/(2*k2)
 
         if (associated(EV%OutputTransfer)) then
@@ -2837,12 +2796,12 @@
                     procedure(TSource_func), pointer :: custom_sources_func
 
                     call c_f_procpointer(CP%CustomSources%c_source_func,custom_sources_func)
-                    cs2_iede = State%CP%IEDE%cs2_de_a(a)
-                    call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, w_iede_t, cs2_iede, &
-                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoiede_t,grhonu_t, &
+
+                    call custom_sources_func(EV%CustomSources, tau, a, adotoa, grho, gpres,w_dark_energy_t, cs2_de, &
+                        grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t, &
                         k, etak, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
-                        dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, dgrho_iede/grhoiede_t, delta_p_b, &
-                        dgq, qg, qr, dgq_de/grhov_t, dgq_iede/grhoiede_t, vb, qgdot, qrdot, vbdot, &
+                        dgrho, clxg,clxb,clxc,clxr,clxnu, dgrho_de/grhov_t, delta_p_b, &
+                        dgq, qg, qr, dgq_de/grhov_t, vb, qgdot, qrdot, vbdot, &
                         dgpi, pig, pir, pigdot, pirdot, diff_rhopi, &
                         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
                         opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, &
@@ -2866,11 +2825,11 @@
     real(dl) ep,tau,grho,rhopi,cs2,opacity,gpres
     logical finished_tightcoupling
     real(dl), dimension(:),pointer :: neut,neutprime,E,B,Eprime,Bprime
-    real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhoiede_t,polter
+    real(dl)  grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,polter
     real(dl) sigma, qg,pig, qr, vb, rhoq, vbdot, photbar, pb43
     real(dl) k,k2,a,a2, adotdota
     real(dl) pir,adotoa
-    real(dl) w_dark_energy_t, w_iede_t
+    real(dl) w_dark_energy_t
 
     k2=EV%k2_buf
     k=EV%k_buf
@@ -2909,10 +2868,9 @@
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
     call CP%DarkEnergy%BackgroundDensityAndPressure(State%grhov, a, grhov_t, w_dark_energy_t)
-    call CP%IEDE%BackgroundDensityAndPressure(State%grhoiede, a, grhoiede_t, w_iede_t)
 
-    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t+grhoiede_t
-    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t+grhoiede_t*w_iede_t
+    grho=grhob_t+grhoc_t+grhor_t+grhog_t+grhov_t
+    gpres=(grhog_t+grhor_t)/3._dl+grhov_t*w_dark_energy_t
 
     adotoa=sqrt(grho/3._dl)
     adotdota=(adotoa*adotoa-gpres)/2

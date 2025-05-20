@@ -19,6 +19,7 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
+    procedure :: xi_a
     procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
@@ -32,13 +33,8 @@
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
-        ! Used for IEDE
-        real(dl) :: w_n = 1._dl
-        real(dl) :: fde_zc = 0._dl ! energy density fraction at a_c (not the same as peak dark energy fraction)
-        real(dl) :: zc !transition scale factor
+        ! Used for IDE
         real(dl) :: xi = 0._dl !Coupling parameter
-        real(dl) :: Omega_iede_zc ! density at zc
-        real(dl) :: Omega_iede ! density at z=0
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
     contains
@@ -48,6 +44,7 @@
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
+    procedure :: xi_a => TDarkEnergyEqnOfState_xi_a
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
@@ -64,6 +61,15 @@
     w_de = -1._dl
 
     end function w_de  ! equation of state of the PPF DE
+    
+    function xi_a(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: xi_a, al
+    real(dl), intent(IN) :: a
+
+    xi_a = 0._dl
+
+    end function xi_a
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -232,6 +238,15 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
+    
+    function TDarkEnergyEqnOfState_xi_a(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_xi_a
+    real(dl), intent(IN) :: a
+
+    TDarkEnergyEqnOfState_xi_a = this%xi
+
+    end function TDarkEnergyEqnOfState_xi_a
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
@@ -270,8 +285,12 @@
     real(dl), intent(IN) :: a
 
     if(.not. this%use_tabulated_w) then
-        grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
-        if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
+        if (this%xi/=0) then
+            grho_de = a ** (1._dl - 3. * this%w_lam + this%xi)
+        else
+            grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
+            if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
+        end if
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
@@ -313,6 +332,7 @@
     if(.not. this%use_tabulated_w)then
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa = Ini%Read_Double('wa', 0.d0)
+        this%xi = Ini%Read_Double('xi', 0.d0)
         ! trap dark energy becoming important at high redshift 
         ! (will still work if this test is removed in some cases)
         if (this%w_lam + this%wa > 0) &

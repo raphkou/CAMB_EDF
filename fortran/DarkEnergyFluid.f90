@@ -40,20 +40,6 @@
     procedure :: PerturbationEvolve => TAxionEffectiveFluid_PerturbationEvolve
     end type TAxionEffectiveFluid
     
-    ! Interacting early dark energy
-    type, extends(TDarkEnergyEqnOfState) :: TIEDE
-        real(dl), private :: a_c, acpow, pow, freq, n !cached internally
-    contains
-    procedure :: ReadParams =>  TIEDE_ReadParams
-    procedure, nopass :: PythonClass => TIEDE_PythonClass
-    procedure, nopass :: SelfPointer => TIEDE_SelfPointer
-    procedure :: Init => TIEDE_Init
-    procedure :: w_de => TIEDE_w_de
-    procedure :: grho_de => TIEDE_grho_de
-    procedure :: PerturbedStressEnergy => TIEDE_PerturbedStressEnergy
-    procedure :: PerturbationEvolve => TIEDE_PerturbationEvolve
-    end type TIEDE
-    
     contains
 
 
@@ -137,8 +123,8 @@
 
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) * Hv3_over_k) &
-        -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
+    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) * (1-this%xi/3*(1+w)) * Hv3_over_k) &
+    -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
     if (this%use_tabulated_w) then
         !account for derivatives of w
         loga = log(a)
@@ -150,7 +136,7 @@
     end if
     !velocity
     if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) -(cs2_lam-w)*(1+w)*adotoa*this%xi + &
             k * cs2_lam * y(w_ix) / (1 + w)
     else
         ayprime(w_ix + 1) = 0
@@ -302,123 +288,5 @@
     dgqe = ay(w_ix + 1) * grhov_t
 
     end subroutine TAxionEffectiveFluid_PerturbedStressEnergy
-    
-    subroutine TIEDE_ReadParams(this, Ini)
-    use IniObjects
-    class(TIEDE) :: this
-    class(TIniFile), intent(in) :: Ini
-
-    call this%TDarkEnergyEqnOfState%ReadParams(Ini)
-
-    this%w_n  = Ini%Read_Double('IEDE_w_n')
-    this%fde_zc  = Ini%Read_Double('IEDE_fde_zc')
-    this%zc  = Ini%Read_Double('IEDE_zc')
-    this%xi  = Ini%Read_Double('IEDE_xi')
-
-    end subroutine TIEDE_ReadParams
-
-
-    function TIEDE_PythonClass()
-    character(LEN=:), allocatable :: TIEDE_PythonClass
-
-    TIEDE_PythonClass = 'IEDE'
-    end function TIEDE_PythonClass
-
-    subroutine TIEDE_SelfPointer(cptr,P)
-    use iso_c_binding
-    Type(c_ptr) :: cptr
-    Type (TIEDE), pointer :: PType
-    class (TPythonInterfacedClass), pointer :: P
-
-    call c_f_pointer(cptr, PType)
-    P => PType
-
-    end subroutine TIEDE_SelfPointer
-    
-    subroutine TIEDE_Init(this, State)
-    use classes
-    class(TIEDE), intent(inout) :: this
-    class(TCAMBdata), intent(in), target :: State
-    real(dl) :: grho_rad, F, p, mu, xc, n
-
-    call this%TDarkEnergyEqnOfState%Init(State)
-    
-    select type(State)
-    class is (CAMBdata)
-        this%pow = 3*(1+this%w_n)
-        this%a_c = 1/(1+this%zc)
-        this%acpow = this%a_c**this%pow
-        this%num_perturb_equations = 2
-    end select
-
-    end subroutine TIEDE_Init
-
-
-    function TIEDE_w_de(this, a)
-    class(TIEDE) :: this
-    real(dl) :: TIEDE_w_de
-    real(dl), intent(IN) :: a
-    real(dl) :: rho, apow, acpow
-
-    TIEDE_w_de = (1._dl+this%w_n)/(1._dl+(this%a_c/a)**this%pow)-1._dl
-
-    end function TIEDE_w_de
-
-    function TIEDE_grho_de(this, a)  !relative density (8 pi G a^4 rho_iede /grhoiede)
-    class(TIEDE) :: this
-    real(dl) :: TIEDE_grho_de
-    real(dl), intent(IN) :: a
-
-    if(a == 0.d0)then
-        TIEDE_grho_de = 0.d0
-    else
-        TIEDE_grho_de = this%Omega_iede_zc / this%Omega_iede * a**4 * (2._dl/((a/this%a_c)**this%pow+1._dl))**(1._dl/(1._dl+this%xi))
-
-    endif
-    end function TIEDE_grho_de
-
-    subroutine TIEDE_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y, cs2_lam)
-    class(TIEDE), intent(in) :: this
-    real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam
-    integer, intent(in) :: w_ix
-    real(dl) Hv3_over_k, deriv, apow, acpow, cs2, fac
-
-    apow = a**this%pow
-    acpow = this%acpow
-    Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
-    ! dw/dlog a
-    deriv  = (1._dl + this%w_n)*this%pow*(this%a_c/a)**this%pow/(1+(this%a_c/a)**this%pow)**2
-    
-    !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w) / (1 + this%xi) * Hv3_over_k) &
-        -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z - adotoa*deriv* Hv3_over_k
-
-    !velocity perturbation
-    if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * w) * y(w_ix + 1) + &
-            k * cs2_lam * y(w_ix) / (1 + w) + 3 * adotoa / (1 + this%xi) * (cs2_lam - w - this%xi * (1 + w)) * y(w_ix + 1)
-    else
-        ayprime(w_ix + 1) = 0
-    end if
-
-    end subroutine TIEDE_PerturbationEvolve
-
-
-    subroutine TIEDE_PerturbedStressEnergy(this, dgrhoe, dgqe, &
-        a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1, ay, ayprime, w_ix)
-    class(TIEDE), intent(inout) :: this
-    real(dl), intent(out) :: dgrhoe, dgqe
-    real(dl), intent(in) :: a, dgq, dgrho, grho, grhov_t, w, gpres_noDE, etak, adotoa, k, kf1
-    real(dl), intent(in) :: ay(*)
-    real(dl), intent(inout) :: ayprime(*)
-    integer, intent(in) :: w_ix
-
-    dgrhoe = ay(w_ix) * grhov_t
-    dgqe = ay(w_ix + 1) * grhov_t * (1 + w)
-    
-    end subroutine TIEDE_PerturbedStressEnergy
-
 
     end module DarkEnergyFluid

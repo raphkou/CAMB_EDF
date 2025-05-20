@@ -173,10 +173,10 @@
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhoiede,grhoiede_zc,grhornomass,grhok
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
-        real(dl) Omega_de, Omega_iede_zc, Omega_iede
+        real(dl) Omega_de
         real(dl) curv, curvature_radius, Ksign !curvature_radius = 1/sqrt(|curv|), Ksign = 1,0 or -1
         real(dl) tau0,chi0 !time today and rofChi(tau0/curvature_radius)
         real(dl) scale !relative to flat. e.g. for scaling lSamp%l sampling.
@@ -235,8 +235,6 @@
 
         Type(TTimeSources), allocatable :: ScalarTimeSources
         integer :: Scalar_C_last = C_PhiE
-        
-        Type(TCubicSpline) :: X_cdm_spline
 
 
     contains
@@ -264,15 +262,11 @@
     procedure :: get_lmax_lensed => CAMBdata_get_lmax_lensed
     procedure :: get_zstar => CAMBdata_get_zstar
     procedure :: DarkEnergyStressEnergy => CAMBdata_DarkEnergyStressEnergy
-    procedure :: IEDEStressEnergy => CAMBdata_IEDEStressEnergy
     procedure :: SetParams => CAMBdata_SetParams
     procedure :: Free => CAMBdata_Free
     procedure :: grho_no_de
     procedure :: grho_cdm
     procedure :: grho_no_de_cdm
-    procedure :: X_cdm
-    procedure :: integrand_X_cdm
-    procedure :: eval_X_cdm_spline
     procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
@@ -329,12 +323,6 @@
     real(dl) zpeak, sigma_z, zpeakstart, zpeakend
     Type(TRedWin), pointer :: Win
     logical back_only
-    real(dl) a_c
-    real(dl) :: log_a_min, log_a_max
-    integer :: nb_step
-    parameter (nb_step = 100)
-    integer i_a
-    real(dl) :: log_a(nb_step), X_cdm_a(nb_step)
     !Constants in SI units
 
     global_error_flag = 0
@@ -442,20 +430,6 @@
             this%curvature_radius=1._dl/sqrt(abs(this%curv))
         end if
         
-        call this%CP%IEDE%Init(this)
-
-        this%CP%IEDE%is_cosmological_constant = .false.
-        
-        if (this%CP%use_iede) then
-            log_a_min = -6._dl
-            log_a_max = 0._dl
-            do i_a = 1, nb_step
-                log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
-                X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
-            end do
-            call this%X_cdm_spline%Init(log_a, X_cdm_a)
-        end if
-        
         !  grho gives the contribution to the expansion rate from: (g) photons,
         !  (r) one flavor of relativistic neutrino (2 degrees of freedom),
         !  (m) nonrelativistic matter (for Omega=1).  grho is actually
@@ -486,19 +460,6 @@
         this%grhok=this%grhocrit*this%CP%omk
         this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
             - (this%grhornomass + this%grhog)/this%grhocrit
-        
-        if (this%CP%use_iede) then
-            a_c = 1 / (1 + this%CP%IEDE%zc)
-
-            this%Omega_iede_zc = this%CP%IEDE%fde_zc * (this%Omega_de + this%grho_no_de_cdm(a_c)/this%grhocrit/a_c**4 + this%CP%omch2/h2/a_c**3) & 
-                / (1 - this%CP%IEDE%fde_zc * (this%eval_X_cdm_spline(a_c) + 1 - (2/((1._dl/a_c)**(3*(1+this%CP%IEDE%w_n))+1._dl))**(1._dl/(1._dl+this%CP%IEDE%xi))))
-            this%grhoiede_zc = this%grhocrit*this%Omega_iede_zc
-            this%Omega_iede = this%Omega_iede_zc * (2._dl/((1._dl/a_c)**(3*(1+this%CP%IEDE%w_n))+1._dl))**(1._dl/(1._dl+this%CP%IEDE%xi))
-            this%grhoiede = this%grhocrit*this%Omega_iede
-            this%Omega_de = this%Omega_de - this%Omega_iede
-            this%CP%IEDE%Omega_iede = this%Omega_iede
-            this%CP%IEDE%Omega_iede_zc = this%Omega_iede_zc
-        end if
         
         this%grhov=this%grhocrit*this%Omega_de
 
@@ -975,14 +936,13 @@
     class(CAMBdata) :: this
     integer, intent(in) :: n
     real(dl), intent(in) :: a_arr(n)
-    real(dl) :: grhov_t, grhoiede_t, rhonu, grhonu, a
-    real(dl), intent(out) :: densities(9,n)
+    real(dl) :: grhov_t, rhonu, grhonu, a
+    real(dl), intent(out) :: densities(8,n)
     integer nu_i,i
 
     do i=1, n
         a = a_arr(i)
         call this%CP%DarkEnergy%BackgroundDensityAndPressure(this%grhov, a, grhov_t)
-        call this%CP%IEDE%BackgroundDensityAndPressure(this%grhoiede, a, grhoiede_t)
         grhonu = 0
 
         if (this%CP%Num_Nu_massive /= 0) then
@@ -1000,8 +960,7 @@
         densities(6,i) = this%grhornomass
         densities(7,i) = grhonu
         densities(8,i) = grhov_t*a**2
-        densities(9,i) = grhoiede_t*a**2
-        densities(1,i) = sum(densities(2:9,i))
+        densities(1,i) = sum(densities(2:8,i))
     end do
 
     end subroutine CAMBdata_GetBackgroundDensities
@@ -1112,20 +1071,6 @@
     grhov_t = grhov_t/a**2
 
     end subroutine CAMBdata_DarkEnergyStressEnergy
-    
-    subroutine CAMBdata_IEDEStressEnergy(this, a, grhoiede_t, w, n)
-    class(CAMBdata) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n)
-    real(dl), intent(out) :: grhoiede_t(n), w(n)
-    integer i
-
-    do i=1, n
-        call this%CP%IEDE%BackgroundDensityAndPressure(1._dl, a(i), grhoiede_t(i), w(i))
-    end do
-    grhoiede_t = grhoiede_t/a**2
-
-    end subroutine CAMBdata_IEDEStressEnergy
 
     function rofChi(this,Chi) !sinh(chi) for open, sin(chi) for closed.
     class(CAMBdata) :: this
@@ -1276,15 +1221,13 @@
     !  Return 8*pi*G*rho_cdm*a**4
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: a_c
+    real(dl) :: xi, w_lam
     real(dl) :: grho_cdm
     
-    if (this%CP%use_iede) then
-        a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-        grho_cdm = (this%grhoc + this%grhoiede_zc * a_c**3 * this%eval_X_cdm_spline(a)) * a
-    else
-        grho_cdm = this%grhoc * a
-    end if
+    xi = this%CP%DarkEnergy%xi_a(a)
+    w_lam = this%CP%DarkEnergy%w_de(a)
+    
+    grho_cdm = (this%grhoc + xi/(xi-3*w_lam)*this%grhov*(1._dl-a**(-3*(w_lam-xi/3._dl)))) * a
     
     end function grho_cdm
 
@@ -1325,43 +1268,6 @@
     end if
 
     end function grho_no_de_cdm
-    
-    function integrand_X_cdm(this, x)
-    class(CAMBdata) :: this
-    real(dl), intent(in) :: x
-    real(dl) :: a_c
-    real(dl) integrand_X_cdm
-    
-    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-    integrand_X_cdm = 10**(3*x)*(10**x/a_c)**(3*(1._dl+this%CP%IEDE%w_n)) / (1+(10**x/a_c)**(3*(1+this%CP%IEDE%w_n)))**((2._dl+this%CP%IEDE%xi)/(1._dl+this%CP%IEDE%xi))*dlog(10._dl)
-    
-    end function integrand_X_cdm
-    
-    function X_cdm(this, a)
-    class(CAMBdata) :: this
-    real(dl), intent(in) :: a
-    real(dl) :: a_c
-    real(dl) :: X_cdm
-    
-    a_c = 1._dl/(1._dl+this%CP%IEDE%zc)
-    X_cdm = 3._dl * 2._dl**(1._dl/(1._dl+this%CP%IEDE%xi)) * this%CP%IEDE%xi / (1._dl+this%CP%IEDE%xi) * (1._dl+this%CP%IEDE%w_n)/a_c**3 * Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
-
-    end function X_cdm
-
-    
-    function eval_X_cdm_spline(this, a)
-    class(CAMBdata) :: this
-    real(dl), intent(in) :: a
-    real(dl) :: eval_X_cdm_spline
-    real(dl) :: al
-    
-    al=dlog10(a)
-    if(al <= this%X_cdm_spline%Xmin_interp) then
-        eval_X_cdm_spline= this%X_cdm_spline%F(1)
-    else
-        eval_X_cdm_spline = this%X_cdm_spline%Value(al)
-    endif
-    end function eval_X_cdm_spline
 
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this
