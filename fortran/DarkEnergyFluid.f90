@@ -136,7 +136,7 @@
     end if
     !velocity
     if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) -(cs2_lam-w)*(1+w)*adotoa*this%xi + &
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) -(cs2_lam-w)*(1+w)*adotoa*this%xi*y(w_ix + 1) + &
             k * cs2_lam * y(w_ix) / (1 + w)
     else
         ayprime(w_ix + 1) = 0
