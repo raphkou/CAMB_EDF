@@ -212,7 +212,6 @@ class CAMBdata(F2003Class):
                  ('RedshiftAtTimeArr', [numpy_1d, numpy_1d, int_arg]),
                  ('CosmomcTheta', [], c_double),
                  ('DarkEnergyStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
-                 ('IEDEStressEnergy', [numpy_1d, numpy_1d, numpy_1d, int_arg]),
                  ('get_lmax_lensed', [], c_int),
                  ('get_zstar', [d_arg], c_double),
                  ('SetParams', [POINTER(CAMBparams), int_arg, int_arg, int_arg, int_arg])
@@ -658,19 +657,6 @@ class CAMBdata(F2003Class):
         w = np.zeros(scales.shape)
         self.f_DarkEnergyStressEnergy(scales, rho, w, byref(c_int(len(scales))))
         if scalar:
-            return rho[0], w[0]
-        else:
-            return rho, w
-
-    def get_iede_rho_w(self, a):
-        if np.isscalar(a):
-            scales = np.array([a])
-        else:
-            scales = np.ascontiguousarray(a)
-        rho = np.zeros(scales.shape)
-        w = np.zeros(scales.shape)
-        self.f_IEDEStressEnergy(scales, rho, w, byref(c_int(len(scales))))
-        if np.isscalar(a):
             return rho[0], w[0]
         else:
             return rho, w

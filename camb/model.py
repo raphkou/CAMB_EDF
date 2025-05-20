@@ -56,7 +56,7 @@ evolve_names = transfer_names + ['a', 'etak', 'H', 'growth', 'v_photon', 'pi_pho
 
 background_names = ['x_e', 'opacity', 'visibility', 'cs2b', 'T_b', 'dopacity', 'ddopacity', 'dvisibility',
                     'ddvisibility']
-density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de', 'iede']
+density_names = ['tot', 'K', 'cdm', 'baryon', 'photon', 'neutrino', 'nu', 'de']
 
 neutrino_hierarchy_normal = 'normal'
 neutrino_hierarchy_inverted = 'inverted'
@@ -214,7 +214,6 @@ class CAMBparams(F2003Class):
         ("Recomb", AllocatableObject(recomb.RecombinationModel)),
         ("Reion", AllocatableObject(reion.ReionizationModel)),
         ("DarkEnergy", AllocatableObject(DarkEnergyModel)),
-        ("IEDE", AllocatableObject(DarkEnergyModel)),
         ("NonLinearModel", AllocatableObject(NonLinearModel)),
         ("Accuracy", AccuracyParams),
         ("SourceTerms", SourceTermParams),
@@ -241,8 +240,7 @@ class CAMBparams(F2003Class):
          "When interpolating use a fiducial spectrum shape to define ratio to spline"),
         ("min_l_logl_sampling", c_int, "Minimum L to use log sampling for L"),
         ("SourceWindows", AllocatableObjectArray(SourceWindow)),
-        ("CustomSources", CustomSources),
-        ("use_iede", c_bool, "Use iede")
+        ("CustomSources", CustomSources)
     ]
 
     _fortran_class_module_ = 'model'
@@ -589,7 +587,7 @@ class CAMBparams(F2003Class):
 
     def set_classes(self, dark_energy_model=None, initial_power_model=None,
                     non_linear_model=None, recombination_model=None,
-                    reionization_model=None, IEDE=False):
+                    reionization_model=None):
         """
         Change the classes used to implement parts of the model.
 
@@ -601,8 +599,6 @@ class CAMBparams(F2003Class):
         """
         if dark_energy_model:
             self.DarkEnergy = self.make_class_named(dark_energy_model, DarkEnergyModel)
-        if IEDE == True:
-            self.IEDE = self.make_class_named('IEDE', DarkEnergyEqnOfState)
         if initial_power_model:
             self.InitPower = self.make_class_named(initial_power_model, InitialPower)
         if non_linear_model:
