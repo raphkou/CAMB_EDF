@@ -632,7 +632,7 @@ class CAMBdata(F2003Class):
         if unknown := set(vars).difference(model.density_names):
             raise CAMBError('Unknown names %s; valid names are %s' % (unknown, model.density_names))
         arr = np.atleast_1d(a)
-        outputs = np.zeros((arr.shape[0], 9))
+        outputs = np.zeros((arr.shape[0], 8))
         self.f_GetBackgroundDensities(byref(c_int(arr.shape[0])), arr, outputs)
         indices = [model.density_names.index(var) for var in vars]
         if format == 'dict':

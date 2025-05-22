@@ -37,13 +37,14 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
         ("xi", c_double, "coupling parameter"),
+        ("xi_1", c_double, "scale factor varying coupling parameter"),
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
     
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi=0.):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi=0., xi_1=0.):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -55,6 +56,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.wa = wa
         self.cs2 = cs2
         self.xi = xi
+        self.xi_1 = xi_1
         self.validate_params()
 
     def validate_params(self):

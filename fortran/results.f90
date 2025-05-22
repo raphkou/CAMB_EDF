@@ -235,6 +235,8 @@
 
         Type(TTimeSources), allocatable :: ScalarTimeSources
         integer :: Scalar_C_last = C_PhiE
+        
+        Type(TCubicSpline) :: X_cdm_spline
 
 
     contains
@@ -267,6 +269,9 @@
     procedure :: grho_no_de
     procedure :: grho_cdm
     procedure :: grho_no_de_cdm
+    procedure :: X_cdm
+    procedure :: integrand_X_cdm
+    procedure :: eval_X_cdm_spline
     procedure :: GetReionizationOptDepth
     procedure :: rofChi
     procedure :: cosfunc
@@ -324,6 +329,11 @@
     Type(TRedWin), pointer :: Win
     logical back_only
     !Constants in SI units
+    real(dl) :: log_a_min, log_a_max
+    integer :: nb_step
+    parameter (nb_step = 100)
+    integer i_a
+    real(dl) :: log_a(nb_step), X_cdm_a(nb_step)
 
     global_error_flag = 0
 
@@ -429,6 +439,16 @@
             this%Ksign =sign(1._dl,this%curv)
             this%curvature_radius=1._dl/sqrt(abs(this%curv))
         end if
+        
+
+        log_a_min = -7._dl
+        log_a_max = 0._dl
+        do i_a = 1, nb_step
+            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
+            X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
+        end do
+        call this%X_cdm_spline%Init(log_a, X_cdm_a)
+
         
         !  grho gives the contribution to the expansion rate from: (g) photons,
         !  (r) one flavor of relativistic neutrino (2 degrees of freedom),
@@ -1221,14 +1241,10 @@
     !  Return 8*pi*G*rho_cdm*a**4
     class(CAMBdata) :: this
     real(dl), intent(in) :: a
-    real(dl) :: xi, w_lam
     real(dl) :: grho_cdm
     
-    xi = this%CP%DarkEnergy%xi_a(a)
-    w_lam = this%CP%DarkEnergy%w_de(a)
-    
-    grho_cdm = (this%grhoc + xi/(xi-3*w_lam)*this%grhov*(1._dl-a**(-3*(w_lam-xi/3._dl)))) * a
-    
+    grho_cdm = (this%grhoc + this%grhov*this%eval_X_cdm_spline(a)) * a
+
     end function grho_cdm
 
     function grho_no_de(this, a) result(grhoa2)
@@ -1268,6 +1284,45 @@
     end if
 
     end function grho_no_de_cdm
+    
+    
+    function integrand_X_cdm(this, x)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: x
+    real(dl) integrand_X_cdm
+    real(dl) xi_0, xi_1, w
+    
+    xi_0 = this%CP%DarkEnergy%get_xi_0(x) ! Argument doesn't matter here because we only work with constant xi_0, xi_a and w
+    xi_1 = this%CP%DarkEnergy%get_xi_1(x)
+    w = this%CP%DarkEnergy%w_de(x)
+    
+    integrand_X_cdm = exp(xi_1*(1._dl-10**x))*10**(x*(1._dl-3*w+xi_0+xi_1))*(xi_1-(xi_0+xi_1)*10**(-x))*dlog(10._dl)
+    
+    end function integrand_X_cdm
+    
+    function X_cdm(this, a)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: X_cdm
+    
+    X_cdm = -Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
+
+    end function X_cdm
+
+    
+    function eval_X_cdm_spline(this, a)
+    class(CAMBdata) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: eval_X_cdm_spline
+    real(dl) :: al
+    
+    al=dlog10(a)
+    if(al <= this%X_cdm_spline%Xmin_interp) then
+        eval_X_cdm_spline= this%X_cdm_spline%F(1)
+    else
+        eval_X_cdm_spline = this%X_cdm_spline%Value(al)
+    endif
+    end function eval_X_cdm_spline
 
     function GetReionizationOptDepth(this)
     class(CAMBdata) :: this

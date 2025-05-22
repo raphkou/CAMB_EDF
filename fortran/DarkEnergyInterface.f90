@@ -20,6 +20,8 @@
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: xi_a
+    procedure :: get_xi_0
+    procedure :: get_xi_1
     procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
@@ -35,6 +37,7 @@
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         ! Used for IDE
         real(dl) :: xi = 0._dl !Coupling parameter
+        real(dl) :: xi_1 = 0._dl
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
     contains
@@ -45,6 +48,8 @@
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: xi_a => TDarkEnergyEqnOfState_xi_a
+    procedure :: get_xi_0 => TDarkEnergyEqnOfState_get_xi_0
+    procedure :: get_xi_1 => TDarkEnergyEqnOfState_get_xi_1
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
@@ -70,6 +75,24 @@
     xi_a = 0._dl
 
     end function xi_a
+    
+    function get_xi_0(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: get_xi_0, al
+    real(dl), intent(IN) :: a
+
+    get_xi_0 = 0._dl
+
+    end function get_xi_0
+    
+    function get_xi_1(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: get_xi_1, al
+    real(dl), intent(IN) :: a
+
+    get_xi_1 = 0._dl
+
+    end function get_xi_1
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -244,9 +267,27 @@
     real(dl) :: TDarkEnergyEqnOfState_xi_a
     real(dl), intent(IN) :: a
 
-    TDarkEnergyEqnOfState_xi_a = this%xi
+    TDarkEnergyEqnOfState_xi_a = this%xi + (1._dl-a)*this%xi_1
 
     end function TDarkEnergyEqnOfState_xi_a
+    
+    function TDarkEnergyEqnOfState_get_xi_0(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_get_xi_0
+    real(dl), intent(IN) :: a
+
+    TDarkEnergyEqnOfState_get_xi_0 = this%xi
+
+    end function TDarkEnergyEqnOfState_get_xi_0
+    
+    function TDarkEnergyEqnOfState_get_xi_1(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_get_xi_1
+    real(dl), intent(IN) :: a
+
+    TDarkEnergyEqnOfState_get_xi_1 = this%xi_1
+
+    end function TDarkEnergyEqnOfState_get_xi_1
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)

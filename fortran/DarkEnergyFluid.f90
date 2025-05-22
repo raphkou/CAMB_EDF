@@ -123,7 +123,7 @@
 
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     !density perturbation
-    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w - this%xi / 3) * Hv3_over_k) &
+    ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w - this%xi_a(a) / 3) * Hv3_over_k) &
     -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z
     if (this%use_tabulated_w) then
         !account for derivatives of w
@@ -136,7 +136,7 @@
     end if
     !velocity
     if (abs(w+1) > 1e-6) then
-        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) -adotoa*this%xi*(1+cs2_lam)/(1+w)*y(w_ix + 1) + &
+        ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) -adotoa*this%xi_a(a)*(1+cs2_lam)/(1+w)*y(w_ix + 1) + &
             k * cs2_lam * y(w_ix) / (1 + w)
     else
         ayprime(w_ix + 1) = 0
