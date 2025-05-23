@@ -326,12 +326,9 @@
     real(dl), intent(IN) :: a
 
     if(.not. this%use_tabulated_w) then
-        if (this%xi/=0) then
-            grho_de = a ** (1._dl - 3. * this%w_lam + this%xi)
-        else
-            grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
+            grho_de = a ** (1._dl - 3. * this%w_lam + this%xi + this%xi_1 - 3. * this%wa)
             if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
-        end if
+            if (this%xi_1/=0) grho_de=grho_de*exp(this%xi_1*(1._dl-a))
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
