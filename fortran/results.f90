@@ -439,17 +439,7 @@
             this%Ksign =sign(1._dl,this%curv)
             this%curvature_radius=1._dl/sqrt(abs(this%curv))
         end if
-        
 
-        log_a_min = -7._dl
-        log_a_max = 0._dl
-        do i_a = 1, nb_step
-            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
-            X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
-        end do
-        call this%X_cdm_spline%Init(log_a, X_cdm_a)
-
-        
         !  grho gives the contribution to the expansion rate from: (g) photons,
         !  (r) one flavor of relativistic neutrino (2 degrees of freedom),
         !  (m) nonrelativistic matter (for Omega=1).  grho is actually
@@ -515,6 +505,15 @@
             this%nu_masses = 0
         end if
         call this%CP%DarkEnergy%Init(this)
+        
+        log_a_min = -7._dl
+        log_a_max = 0._dl
+        do i_a = 1, nb_step
+            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
+            X_cdm_a(i_a) = this%X_cdm(10**(log_a(i_a)))
+        end do
+        call this%X_cdm_spline%Init(log_a, X_cdm_a)
+
         
         if (global_error_flag==0) this%tau0=this%TimeOfz(0._dl)
         if (global_error_flag==0) then
@@ -1292,12 +1291,8 @@
     real(dl) integrand_X_cdm
     real(dl) xi_0, xi_1, w
     
-    xi_0 = this%CP%DarkEnergy%get_xi_0(x) ! Argument doesn't matter here because we only work with constant xi_0, xi_a and w
-    xi_1 = this%CP%DarkEnergy%get_xi_1(x)
-    w = this%CP%DarkEnergy%w_de(x)
-    
-    integrand_X_cdm = exp(xi_1*(1._dl-10**x))*10**(x*(1._dl-3*w+xi_0+xi_1))*(xi_1-(xi_0+xi_1)*10**(-x))*dlog(10._dl)
-    
+    integrand_X_cdm = this%CP%DarkEnergy%xi_a(10**x)*this%CP%DarkEnergy%grho_de(10**x)/10**x*dlog(10._dl)
+
     end function integrand_X_cdm
     
     function X_cdm(this, a)
@@ -1305,7 +1300,7 @@
     real(dl), intent(in) :: a
     real(dl) :: X_cdm
     
-    X_cdm = -Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
+    X_cdm = Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
 
     end function X_cdm
 

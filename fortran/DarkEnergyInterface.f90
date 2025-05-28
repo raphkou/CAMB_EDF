@@ -2,6 +2,7 @@
     use precision
     use interpolation
     use classes
+    use MathUtils
     implicit none
 
     private
@@ -24,6 +25,9 @@
     procedure :: get_xi_1
     procedure :: cs2_de_a
     procedure :: grho_de
+    procedure :: X_de
+    procedure :: integrand_X_de
+    procedure :: eval_X_de_spline
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
 
@@ -32,14 +36,14 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
-        logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
-        logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
-        logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         ! Used for IDE
         real(dl) :: xi = 0._dl !Coupling parameter
         real(dl) :: xi_1 = 0._dl
+        logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
+        logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
+        logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, X_de_spline
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
@@ -52,6 +56,9 @@
     procedure :: get_xi_1 => TDarkEnergyEqnOfState_get_xi_1
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
+    procedure :: X_de => TDarkEnergyEqnOfState_X_de
+    procedure :: integrand_X_de => TDarkEnergyEqnOfState_integrand_X_de
+    procedure :: eval_X_de_spline => TDarkEnergyEqnOfState_eval_X_de_spline
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
 
@@ -117,6 +124,35 @@
     integer, intent(in) :: FeedbackLevel
 
     end subroutine PrintFeedback
+    
+    function integrand_X_de(this, x)
+    class(TDarkEnergyModel), intent(inout) :: this
+    real(dl), intent(in) :: x
+    real(dl) integrand_X_de
+
+    integrand_X_de = 0._dl
+
+    end function integrand_X_de
+    
+    function X_de(this, a)
+    class(TDarkEnergyModel), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: X_de
+
+    X_de = 0._dl
+
+    end function X_de
+
+    
+    function eval_X_de_spline(this, a)
+    class(TDarkEnergyModel), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: eval_X_de_spline
+    real(dl) :: al
+    
+    eval_X_de_spline = 0._dl
+    
+    end function eval_X_de_spline
 
 
     subroutine Init(this, State)
@@ -267,7 +303,12 @@
     real(dl) :: TDarkEnergyEqnOfState_xi_a
     real(dl), intent(IN) :: a
 
-    TDarkEnergyEqnOfState_xi_a = this%xi + (1._dl-a)*this%xi_1
+    !TDarkEnergyEqnOfState_xi_a = this%xi + (1._dl-a)*this%xi_1
+    if (this%xi /= 0._dl .or. this%xi_1 /= 0._dl) then
+        TDarkEnergyEqnOfState_xi_a = -3*(this%xi+this%xi_1*(1._dl-a))+3*this%w_lam-(this%xi_1*a)/(this%xi+this%xi_1*(1._dl-a))
+    else
+        TDarkEnergyEqnOfState_xi_a = 0._dl
+    end if
 
     end function TDarkEnergyEqnOfState_xi_a
     
@@ -326,9 +367,9 @@
     real(dl), intent(IN) :: a
 
     if(.not. this%use_tabulated_w) then
-            grho_de = a ** (1._dl - 3. * this%w_lam + this%xi + this%xi_1 - 3. * this%wa)
+            grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
             if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
-            if (this%xi_1/=0) grho_de=grho_de*exp(this%xi_1*(1._dl-a))
+            if (this%xi/=0 .or. this%xi_1/=0) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
@@ -371,6 +412,7 @@
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa = Ini%Read_Double('wa', 0.d0)
         this%xi = Ini%Read_Double('xi', 0.d0)
+        this%xi_1 = Ini%Read_Double('xi_1', 0.d0)
         ! trap dark energy becoming important at high redshift 
         ! (will still work if this test is removed in some cases)
         if (this%w_lam + this%wa > 0) &
@@ -387,11 +429,60 @@
     use classes
     class(TDarkEnergyEqnOfState), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
-
+    !Constants in SI units
+    real(dl) :: log_a_min, log_a_max
+    integer :: nb_step
+    parameter (nb_step = 100)
+    integer i_a
+    real(dl) :: log_a(nb_step), X_de_a(nb_step)
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
+        
+    if (this%xi /= 0._dl .or. this%xi_1 /= 0._dl) then
+        log_a_min = -7._dl
+        log_a_max = 0._dl
+        do i_a = 1, nb_step
+            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
+            X_de_a(i_a) = this%X_de(10**(log_a(i_a)))
+        end do
+        call this%X_de_spline%Init(log_a, X_de_a)
+    end if
 
     end subroutine TDarkEnergyEqnOfState_Init
+    
+    
+    function TDarkEnergyEqnOfState_integrand_X_de(this, x)
+    class(TDarkEnergyEqnOfState), intent(inout) :: this
+    real(dl), intent(in) :: x
+    real(dl) TDarkEnergyEqnOfState_integrand_X_de
+    real(dl) xi_0, xi_1, w
+
+    TDarkEnergyEqnOfState_integrand_X_de = this%xi_a(10**x)*dlog(10._dl)
+
+    end function TDarkEnergyEqnOfState_integrand_X_de
+    
+    function TDarkEnergyEqnOfState_X_de(this, a)
+    class(TDarkEnergyEqnOfState), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_X_de
+    
+    TDarkEnergyEqnOfState_X_de = Integrate_Romberg(this, TDarkEnergyEqnOfState_integrand_X_de,dlog10(a),0._dl,1d-2)
+    end function TDarkEnergyEqnOfState_X_de
+
+    
+    function TDarkEnergyEqnOfState_eval_X_de_spline(this, a)
+    class(TDarkEnergyEqnOfState), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_eval_X_de_spline
+    real(dl) :: al
+    
+    al=dlog10(a)
+    if(al <= this%X_de_spline%Xmin_interp) then
+        TDarkEnergyEqnOfState_eval_X_de_spline= this%X_de_spline%F(1)
+    else
+        TDarkEnergyEqnOfState_eval_X_de_spline = this%X_de_spline%Value(al)
+    endif
+    end function TDarkEnergyEqnOfState_eval_X_de_spline
 
 
     end module DarkEnergyInterface
