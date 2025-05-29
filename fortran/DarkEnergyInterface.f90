@@ -39,6 +39,7 @@
         ! Used for IDE
         real(dl) :: xi = 0._dl !Coupling parameter
         real(dl) :: xi_1 = 0._dl
+        real(dl) :: gamma = 1._dl
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
@@ -305,7 +306,8 @@
 
     !TDarkEnergyEqnOfState_xi_a = this%xi + (1._dl-a)*this%xi_1
     if (this%xi /= 0._dl .or. this%xi_1 /= 0._dl) then
-        TDarkEnergyEqnOfState_xi_a = -3*(this%xi+this%xi_1*(1._dl-a))+3*this%w_lam-(this%xi_1*a)/(this%xi+this%xi_1*(1._dl-a))
+        !TDarkEnergyEqnOfState_xi_a = -3*(this%xi+this%xi_1*(1._dl-a))+3*this%w_lam-(this%xi_1*a)/(this%xi+this%xi_1*(1._dl-a))
+        TDarkEnergyEqnOfState_xi_a = this%xi-dlog(1._dl+this%xi_1*a**this%gamma)
     else
         TDarkEnergyEqnOfState_xi_a = 0._dl
     end if
@@ -413,6 +415,7 @@
         this%wa = Ini%Read_Double('wa', 0.d0)
         this%xi = Ini%Read_Double('xi', 0.d0)
         this%xi_1 = Ini%Read_Double('xi_1', 0.d0)
+        this%gamma = Ini%Read_Double('gamma', 1.d0)
         ! trap dark energy becoming important at high redshift 
         ! (will still work if this test is removed in some cases)
         if (this%w_lam + this%wa > 0) &
