@@ -1943,7 +1943,7 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
-    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_a(0._dl))*InitVec(i_clxc)
+    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_a(0._dl)/3._dl)*InitVec(i_clxc)
     InitVec(i_clxde+1)=InitVec(i_vc)
 
     if (CP%Evolve_delta_Ts) then
