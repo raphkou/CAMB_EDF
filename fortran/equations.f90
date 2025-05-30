@@ -2306,26 +2306,22 @@
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
     
-        grho_matter=grhonu_t+grhob_t+grhoc_t
-    grho = grho_matter+grhor_t+grhog_t+grhov_t
-    
     prho = grhob_t+grhoc_t+grhor_t*4._dl/3._dl+grhog_t*4._dl/3._dl+grhov_t*(1._dl+w_dark_energy_t)
-    
     if (State%CP%Num_Nu_Massive > 0) then
         do nu_i = 1, CP%Nu_mass_eigenstates
             prho = prho + grhonu_t/State%CP%Num_Nu_Massive*(1._dl+wnu_arr(nu_i))
         end do
     end if
-    
 
     v_T = dgq/prho
+    
     cs2_lam = State%CP%DarkEnergy%cs2_de_a(a)
     
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
         EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc)
 
-    clxcdot=-k*z-k*vc-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))-State%CP%DarkEnergy%xi_a(a)*grhov_t/grhoc_t*(k*v_T/3._dl+z/3._dl)
+    clxcdot=-k*z-k*vc-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))-State%CP%DarkEnergy%xi_a(a)*grhov_t/grhoc_t*(k*v_T/3._dl+k*z/3._dl)
 
     ayprime(ix_clxc)=clxcdot
     ayprime(ix_vc)=-adotoa*vc

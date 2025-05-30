@@ -124,7 +124,7 @@
     Hv3_over_k =  3*adotoa* y(w_ix + 1) / k
     !density perturbation
     ayprime(w_ix) = -3 * adotoa * (cs2_lam - w) *  (y(w_ix) + (1 + w - this%xi_a(a) / 3) * Hv3_over_k) &
-    -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z + this%xi_a(a) * (k*v_T/3._dl+z/3._dl)
+    -  (1 + w) * k * y(w_ix + 1) - (1 + w) * k * z + this%xi_a(a) * (k*v_T/3._dl+k*z/3._dl)
     if (this%use_tabulated_w) then
         !account for derivatives of w
         loga = log(a)
