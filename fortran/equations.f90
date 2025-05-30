@@ -44,8 +44,8 @@
 
     logical, parameter :: plot_evolve = .false. !for outputing time evolution
 
-    integer, parameter :: basic_num_eqns = 4
-    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4 !Scalar array indices for each quantity
+    integer, parameter :: basic_num_eqns = 5
+    integer, parameter :: ix_etak=1, ix_clxc=2, ix_clxb=3, ix_vb=4, ix_vc=5 !Scalar array indices for each quantity
     integer, parameter :: ixt_H = 1, ixt_shear = 2 !tensor indices
 
     logical :: DoTensorNeutrinos = .true.
@@ -1769,8 +1769,8 @@
     real(dl) a,a2, iqg, rhomass,a_massive, ep
     integer l,i, nu_i, j, ind
     integer, parameter :: i_clxg=1,i_clxr=2,i_clxc=3, i_clxb=4, &
-        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12
-    integer, parameter :: i_max = i_vde
+        i_qg=5,i_qr=6,i_vb=7,i_pir=8, i_eta=9, i_aj3r=10,i_clxde=11,i_vde=12,i_vc=13
+    integer, parameter :: i_max = i_vc
     real(dl) initv(6,1:i_max), initvec(1:i_max)
 
     nullify(EV%OutputTransfer) !Should not be needed, but avoids issues in ifort 14
@@ -1857,6 +1857,7 @@
     initv(1,i_pir)=chi*4._dl/3*x2/Rp15*(1+omtau/4*(4*Rv-5)/(2*Rv+15))
     initv(1,i_aj3r)=chi*4/21._dl/Rp15*x3
     initv(1,i_eta)=-chi*2*EV%Kf(1)*(1 - x2/12*(-10._dl/Rp15 + EV%Kf(1)))
+    initv(1,i_vc)=initv(1,i_vb)
 
     if (CP%Scalar_initial_condition/= initial_adiabatic) then
         !CDM isocurvature
@@ -1924,6 +1925,7 @@
 
     !  CDM
     y(ix_clxc)=InitVec(i_clxc)
+    y(ix_vc)=InitVec(i_vc)
 
     !  Baryons
     y(ix_clxb)=InitVec(i_clxb)
@@ -1941,6 +1943,8 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
+    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_a(0._dl))*InitVec(i_clxc)
+    InitVec(i_clxde+1)=InitVec(i_vc)
 
     if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
@@ -2158,7 +2162,7 @@
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,vc, v_T, prho
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2193,6 +2197,7 @@
 
     !  CDM variables
     clxc=ay(ix_clxc)
+    vc=ay(ix_vc)
 
     !  Baryon variables
     clxb=ay(ix_clxb)
@@ -2215,7 +2220,7 @@
     !  8*pi*a*a*SUM[rho_i*clx_i]
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
-    dgq=grhob_t*vb
+    dgq=grhob_t*vb+grhoc_t*vc
 
     gpres_nu=0
     grhonu_t=0
@@ -2300,16 +2305,30 @@
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
+    
+        grho_matter=grhonu_t+grhob_t+grhoc_t
+    grho = grho_matter+grhor_t+grhog_t+grhov_t
+    
+    prho = grhob_t+grhoc_t+grhor_t*4._dl/3._dl+grhog_t*4._dl/3._dl+grhov_t*(1._dl+w_dark_energy_t)
+    
+    if (State%CP%Num_Nu_Massive > 0) then
+        do nu_i = 1, CP%Nu_mass_eigenstates
+            prho = prho + grhonu_t/State%CP%Num_Nu_Massive*(1._dl+wnu_arr(nu_i))
+        end do
+    end if
+    
 
+    v_T = dgq/prho
     cs2_lam = State%CP%DarkEnergy%cs2_de_a(a)
     
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay, cs2_lam)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc)
 
-    clxcdot=-k*z-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))
+    clxcdot=-k*z-k*vc-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))-State%CP%DarkEnergy%xi_a(a)*grhov_t/grhoc_t*(k*v_T/3._dl+z/3._dl)
 
     ayprime(ix_clxc)=clxcdot
+    ayprime(ix_vc)=-adotoa*vc
 
     !  Baryon equation of motion.
     clxbdot=-k*(z+vb)
