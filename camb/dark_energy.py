@@ -115,15 +115,17 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         :param w: array of w(a)
         :return: self
         """
+        
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        xi_a = np.ascontiguousarray(xi_a, dtype=np.float64)
+        
+        
         if len(a) != len(xi_a):
             raise ValueError('Dark energy xi(a) table non-equal sized arrays')
         if not np.isclose(a[-1], 1):
             raise ValueError('Dark energy xi(a) arrays must end at a=1')
         if np.any(a <= 0):
             raise ValueError('Dark energy xi(a) table cannot be set for a<=0')
-
-        a = np.ascontiguousarray(a, dtype=np.float64)
-        xi_a = np.ascontiguousarray(xi_a, dtype=np.float64)
 
         self.f_SetXiTable(a, xi_a, byref(c_int(len(a))))
         return self
