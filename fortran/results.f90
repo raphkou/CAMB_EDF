@@ -1289,7 +1289,6 @@
     class(CAMBdata) :: this
     real(dl), intent(in) :: x
     real(dl) integrand_X_cdm
-    real(dl) xi_0, xi_1, w
     
     integrand_X_cdm = this%CP%DarkEnergy%xi_a(10**x)*this%CP%DarkEnergy%grho_de(10**x)/10**x*dlog(10._dl)
 

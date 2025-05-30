@@ -4,6 +4,8 @@ from ctypes import c_int, c_double, byref, POINTER, c_bool
 from camb.constants import kappa, c, sigma_boltz, Mpc
 import os
 
+d_arg = POINTER(c_double)
+
 class DarkEnergyModel(F2003Class):
     """
     Abstract base class for dark energy model implementations.
@@ -33,19 +35,19 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("w", c_double, "w(0)"),
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
-        ("xi", c_double, "coupling parameter"),
-        ("xi_1", c_double, "scale factor varying coupling parameter"),
-        ("gamma", c_double, "power coupling parameter"),
+        ("use_spline_xi", c_bool, "using splined coupling"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-                 ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)])]
+                 ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
+                 ('SetXiTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
+                 ('xi_a', [d_arg], c_double)]
     
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi=0., xi_1=0., gamma=1.):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi_a = None, xi = None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -56,10 +58,9 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
-        self.xi = xi
-        self.xi_1 = xi_1
-        self.gamma = gamma
         self.validate_params()
+        if (xi_a is not None and xi is not None):
+            self.set_xi_a_table(xi_a, xi)
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
@@ -105,11 +106,37 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetCs2Table_a(a, cs2, byref(c_int(len(a))))
 
         return self
+    
+    def set_xi_a_table(self, a, xi_a):
+        """
+        Set w(a) from numerical values (used as cubic spline). Note this is quite slow.
+
+        :param a: array of scale factors
+        :param w: array of w(a)
+        :return: self
+        """
+        if len(a) != len(xi_a):
+            raise ValueError('Dark energy xi(a) table non-equal sized arrays')
+        if not np.isclose(a[-1], 1):
+            raise ValueError('Dark energy xi(a) arrays must end at a=1')
+        if np.any(a <= 0):
+            raise ValueError('Dark energy xi(a) table cannot be set for a<=0')
+
+        a = np.ascontiguousarray(a, dtype=np.float64)
+        xi_a = np.ascontiguousarray(xi_a, dtype=np.float64)
+
+        self.f_SetXiTable(a, xi_a, byref(c_int(len(a))))
+        return self
 
     def __getstate__(self):
         if self.use_tabulated_w:
             raise TypeError("Cannot save class with splines")
         return super().__getstate__()
+    
+    
+    def get_xi_a(self, a):
+        return self.f_xi_a(byref(c_double(a)))
+        
 
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
@@ -140,6 +167,9 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_a_table(a, cs2)
+        
+    def set_xi_a_table(self, a, xi_a):
+        super().set_xi_a_table(a, xi_a)
 
 
 @fortran_class

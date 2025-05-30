@@ -21,8 +21,6 @@
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: xi_a
-    procedure :: get_xi_0
-    procedure :: get_xi_1
     procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: X_de
@@ -37,24 +35,21 @@
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         ! Used for IDE
-        real(dl) :: xi = 0._dl !Coupling parameter
-        real(dl) :: xi_1 = 0._dl
-        real(dl) :: gamma = 1._dl
+        logical :: use_spline_xi = .false.
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, X_de_spline
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, X_de_spline, xi_a_spline
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
+    procedure :: SetXiTable => TDarkEnergyEqnOfState_SetXiTable
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: xi_a => TDarkEnergyEqnOfState_xi_a
-    procedure :: get_xi_0 => TDarkEnergyEqnOfState_get_xi_0
-    procedure :: get_xi_1 => TDarkEnergyEqnOfState_get_xi_1
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: X_de => TDarkEnergyEqnOfState_X_de
@@ -83,24 +78,6 @@
     xi_a = 0._dl
 
     end function xi_a
-    
-    function get_xi_0(this, a)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: get_xi_0, al
-    real(dl), intent(IN) :: a
-
-    get_xi_0 = 0._dl
-
-    end function get_xi_0
-    
-    function get_xi_1(this, a)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: get_xi_1, al
-    real(dl), intent(IN) :: a
-
-    get_xi_1 = 0._dl
-
-    end function get_xi_1
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -277,6 +254,16 @@
     call this%sound_speed_a%Init(log(a), cs2_a)
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_a
+    
+    subroutine TDarkEnergyEqnOfState_SetXiTable(this, a, xi_a, n)
+    class(TDarkEnergyEqnOfState) :: this
+    integer, intent(in) :: n
+    real(dl), intent(in) :: a(n), xi_a(n)
+
+    this%use_spline_xi = .true.
+    call this%xi_a_spline%Init(log(a), xi_a)
+    
+    end subroutine TDarkEnergyEqnOfState_SetXiTable
 
 
     function TDarkEnergyEqnOfState_w_de(this, a)
@@ -301,36 +288,23 @@
     
     function TDarkEnergyEqnOfState_xi_a(this, a)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_xi_a
+    real(dl) :: TDarkEnergyEqnOfState_xi_a, al
     real(dl), intent(IN) :: a
 
-    !TDarkEnergyEqnOfState_xi_a = this%xi + (1._dl-a)*this%xi_1
-    if (this%xi /= 0._dl .or. this%xi_1 /= 0._dl) then
-        !TDarkEnergyEqnOfState_xi_a = -3*(this%xi+this%xi_1*(1._dl-a))+3*this%w_lam-(this%xi_1*a)/(this%xi+this%xi_1*(1._dl-a))
-        TDarkEnergyEqnOfState_xi_a = this%xi-dlog(1._dl+this%xi_1*a**this%gamma)
-    else
+    if (.not. this%use_spline_xi) then
         TDarkEnergyEqnOfState_xi_a = 0._dl
-    end if
+    else
+        al=dlog(a)
+        if(al <= this%xi_a_spline%Xmin_interp) then
+            TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(1)
+        elseif(al >= this%equation_of_state%Xmax_interp) then
+            TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(this%xi_a_spline%n)
+        else
+            TDarkEnergyEqnOfState_xi_a = this%xi_a_spline%Value(al)
+        endif
+    endif
 
     end function TDarkEnergyEqnOfState_xi_a
-    
-    function TDarkEnergyEqnOfState_get_xi_0(this, a)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_get_xi_0
-    real(dl), intent(IN) :: a
-
-    TDarkEnergyEqnOfState_get_xi_0 = this%xi
-
-    end function TDarkEnergyEqnOfState_get_xi_0
-    
-    function TDarkEnergyEqnOfState_get_xi_1(this, a)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_get_xi_1
-    real(dl), intent(IN) :: a
-
-    TDarkEnergyEqnOfState_get_xi_1 = this%xi_1
-
-    end function TDarkEnergyEqnOfState_get_xi_1
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
@@ -371,7 +345,7 @@
     if(.not. this%use_tabulated_w) then
             grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
             if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
-            if (this%xi/=0 .or. this%xi_1/=0) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
+            if (this%use_spline_xi) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
@@ -413,9 +387,6 @@
     if(.not. this%use_tabulated_w)then
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa = Ini%Read_Double('wa', 0.d0)
-        this%xi = Ini%Read_Double('xi', 0.d0)
-        this%xi_1 = Ini%Read_Double('xi_1', 0.d0)
-        this%gamma = Ini%Read_Double('gamma', 1.d0)
         ! trap dark energy becoming important at high redshift 
         ! (will still work if this test is removed in some cases)
         if (this%w_lam + this%wa > 0) &
@@ -441,7 +412,7 @@
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
         
-    if (this%xi /= 0._dl .or. this%xi_1 /= 0._dl) then
+    if (this%use_spline_xi) then
         log_a_min = -7._dl
         log_a_max = 0._dl
         do i_a = 1, nb_step
@@ -458,7 +429,6 @@
     class(TDarkEnergyEqnOfState), intent(inout) :: this
     real(dl), intent(in) :: x
     real(dl) TDarkEnergyEqnOfState_integrand_X_de
-    real(dl) xi_0, xi_1, w
 
     TDarkEnergyEqnOfState_integrand_X_de = this%xi_a(10**x)*dlog(10._dl)
 
