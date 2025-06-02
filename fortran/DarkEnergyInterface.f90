@@ -34,11 +34,15 @@
         real(dl) :: w_lam = -1_dl !p/rho for the dark energy (an effective value, used e.g. for halofit)
         real(dl) :: wa = 0._dl !may not be used, just for compatibility with e.g. halofit
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
+        real(dl) :: xi = 0._dl ! First IDE parameter
+        real(dl) :: xi_1 = 0._dl ! Second IDE parameter
         ! Used for IDE
         logical :: use_spline_xi = .false.
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
+        logical :: cpl_like = .false.
+        logical :: xi0xia = .false.
         !Interpolations if use_tabulated_w=.true.
         Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, X_de_spline, xi_a_spline
     contains
@@ -291,9 +295,7 @@
     real(dl) :: TDarkEnergyEqnOfState_xi_a, al
     real(dl), intent(IN) :: a
 
-    if (.not. this%use_spline_xi) then
-        TDarkEnergyEqnOfState_xi_a = 0._dl
-    else
+    if (this%use_spline_xi) then
         al=dlog(a)
         if(al <= this%xi_a_spline%Xmin_interp) then
             TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(1)
@@ -302,6 +304,16 @@
         else
             TDarkEnergyEqnOfState_xi_a = this%xi_a_spline%Value(al)
         endif
+    else
+        if (this%cpl_like) then
+            TDarkEnergyEqnOfState_xi_a = -3._dl*(this%xi+this%xi_1*(1._dl-a))+3._dl*this%w_lam-this%xi_1*a/(this%xi+this%xi_1*(1._dl-a))
+        else
+            if (this%xi0xia) then
+                TDarkEnergyEqnOfState_xi_a = this%xi+this%xi_1*(1._dl-a)
+            else
+                TDarkEnergyEqnOfState_xi_a = 0._dl
+            end if
+        end if
     endif
 
     end function TDarkEnergyEqnOfState_xi_a
@@ -345,7 +357,7 @@
     if(.not. this%use_tabulated_w) then
             grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
             if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
-            if (this%use_spline_xi) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
+            if (this%use_spline_xi .or. this%cpl_like .or. this%xi0xia) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
@@ -412,7 +424,7 @@
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
         
-    if (this%use_spline_xi) then
+    if (this%use_spline_xi .or. this%cpl_like .or. this%xi0xia) then
         log_a_min = -7._dl
         log_a_max = 0._dl
         do i_a = 1, nb_step

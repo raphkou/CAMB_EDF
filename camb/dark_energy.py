@@ -35,19 +35,25 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("w", c_double, "w(0)"),
         ("wa", c_double, "-dw/da(0)"),
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
+        ("xi", c_double, "First IDE parameter"),
+        ("xi_1", c_double, "Second IDE parameter"),
         ("use_spline_xi", c_bool, "using splined coupling"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
+        ("cpl_like", c_bool, "cpl like IDE"),
+        ("xi0xia", c_bool, "xi_0/xi_a IDE")
     ]
 
     _methods_ = [('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
                  ('SetXiTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-                 ('xi_a', [d_arg], c_double)]
+                 ('xi_a', [d_arg], c_double),
+                 ('X_de', [d_arg], c_double),
+                 ('eval_X_de_spline', [d_arg], c_double)]
     
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi_a = None, xi = None):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi = None, xi_a = None, coupling_model='spline'):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -58,9 +64,19 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
+        if (xi_a is not None or xi is not None):
+            if coupling_model == 'spline':
+                self.set_xi_a_table(xi_a, xi)
+            elif coupling_model == 'cpl_like':
+                self.xi = xi
+                self.xi_1 = xi_a
+                self.cpl_like = True
+            elif coupling_model == 'xi0xia':
+                self.xi = xi
+                self.xi_1 = xi_a
+                self.xi0xia = True
+                
         self.validate_params()
-        if (xi_a is not None and xi is not None):
-            self.set_xi_a_table(xi_a, xi)
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
@@ -138,6 +154,12 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     
     def get_xi_a(self, a):
         return self.f_xi_a(byref(c_double(a)))
+    
+    def get_X_de(self, a):
+        return self.f_X_de(byref(c_double(a)))
+    
+    def get_eval_X_de_spline(self, a):
+        return self.f_eval_X_de_spline(byref(c_double(a)))
         
 
 @fortran_class
