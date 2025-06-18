@@ -110,9 +110,10 @@
     end function VofPhi
 
 
-    subroutine TQuintessence_Init(this, State)
+    subroutine TQuintessence_Init(this, State, grhoc, grhov)
     class(TQuintessence), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
+    real(dl) :: grhoc, grhov
 
     !Make interpolation table, etc,
     !At this point massive neutrinos have been initialized
@@ -255,11 +256,11 @@
 
 
     subroutine TQuintessence_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y, cs2_lam, v_T, vc)
+        a, adotoa, k, z, y, cs2_lam, v_T, vc, grhov_t)
     !Get conformal time derivatives of the density perturbation and velocity
     class(TQuintessence), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, v_T, vc
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, v_T, vc, grhov_t
     integer, intent(in) :: w_ix
     real(dl) clxq, vq, phi, phidot
 
@@ -298,7 +299,7 @@
     end function TEarlyQuintessence_VofPhi
 
 
-    subroutine TEarlyQuintessence_Init(this, State)
+    subroutine TEarlyQuintessence_Init(this, State, grhoc, grhov)
     use Powell
     class(TEarlyQuintessence), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
@@ -317,12 +318,13 @@
     Type(TTimer) :: Timer
     Type(TNEWUOA) :: Minimize
     real(dl) log_params(2), param_min(2), param_max(2)
+    real(dl) :: grhoc, grhov
 
     !Make interpolation table, etc,
     !At this point massive neutrinos have been initialized
     !so grho_no_de can be used to get density and pressure of other components at scale factor a
 
-    call this%TQuintessence%Init(State)
+    call this%TQuintessence%Init(State, grhoc, grhov)
 
     if (this%use_zc) then
         !Find underlying parameters m,f to give specified zc and fde_zc (peak early dark energy fraction)

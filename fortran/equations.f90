@@ -1943,7 +1943,7 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
-    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_a(0._dl)/3._dl)*InitVec(i_clxc)
+    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_f(CP%DarkEnergy%eval_grho_de_spline(1e-7_dl))/3._dl)*InitVec(i_clxc)
     InitVec(i_clxde+1)=InitVec(i_vc)
 
     if (CP%Evolve_delta_Ts) then
@@ -2319,9 +2319,9 @@
     
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc, grhov_t)
 
-    clxcdot=-k*z-k*vc-State%CP%DarkEnergy%xi_a(a)*adotoa*grhov_t/grhoc_t*(ay(EV%w_ix)-ay(ix_clxc))-State%CP%DarkEnergy%xi_a(a)*grhov_t/grhoc_t*(k*v_T/3._dl+k*z/3._dl)
+    clxcdot=-k*z-k*vc-grhov_t/grhoc_t*(State%CP%DarkEnergy%xi_f(grhov_t/a**2)*(k*v_T/3._dl+k*z/3._dl)+adotoa*(State%CP%DarkEnergy%xi_f(grhov_t/a**2)*(ay(EV%w_ix)-ay(ix_clxc))+State%CP%DarkEnergy%xi_prime_rho(grhov_t/a**2)*ay(EV%w_ix)))
 
     ayprime(ix_clxc)=clxcdot
     ayprime(ix_vc)=-adotoa*vc

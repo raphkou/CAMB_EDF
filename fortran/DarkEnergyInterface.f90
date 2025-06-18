@@ -20,12 +20,13 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
-    procedure :: xi_a
+    procedure :: xi_f
+    procedure :: xi_prime_rho
     procedure :: cs2_de_a
     procedure :: grho_de
-    procedure :: X_de
-    procedure :: integrand_X_de
-    procedure :: eval_X_de_spline
+    procedure :: eval_grho_de_spline
+    procedure :: eval_grho_c_spline
+    procedure :: bg_eqn
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
 
@@ -36,32 +37,33 @@
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         real(dl) :: xi = 0._dl ! First IDE parameter
         real(dl) :: xi_1 = 0._dl ! Second IDE parameter
-        ! Used for IDE
-        logical :: use_spline_xi = .false.
+        real(dl) :: grhov = 0._dl
+        real(dl) :: grhoc = 0._dl
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
-        logical :: cpl_like = .false.
         logical :: xi0xia = .false.
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, X_de_spline, xi_a_spline
+        Type(TCubicSpline) :: equation_of_state, logdensity, sound_speed_a, grho_de_spline, grho_c_spline
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
-    procedure :: SetXiTable => TDarkEnergyEqnOfState_SetXiTable
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
-    procedure :: xi_a => TDarkEnergyEqnOfState_xi_a
+    procedure :: xi_f => TDarkEnergyEqnOfState_xi_f
+    procedure :: xi_prime_rho => TDarkEnergyEqnOfState_xi_prime_rho
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
-    procedure :: X_de => TDarkEnergyEqnOfState_X_de
-    procedure :: integrand_X_de => TDarkEnergyEqnOfState_integrand_X_de
-    procedure :: eval_X_de_spline => TDarkEnergyEqnOfState_eval_X_de_spline
+    procedure :: eval_grho_de_spline => TDarkEnergyEqnOfState_eval_grho_de_spline
+    procedure :: eval_grho_c_spline => TDarkEnergyEqnOfState_eval_grho_c_spline
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
+    procedure :: bg_eqn => TDarkEnergyEqnOfState_bg_eqn
     end type TDarkEnergyEqnOfState
 
+    procedure(TClassDverk) :: dverk
+    
     public TDarkEnergyModel, TDarkEnergyEqnOfState
     contains
 
@@ -74,14 +76,23 @@
 
     end function w_de  ! equation of state of the PPF DE
     
-    function xi_a(this, a)
+    function xi_f(this, x)
     class(TDarkEnergyModel) :: this
-    real(dl) :: xi_a, al
-    real(dl), intent(IN) :: a
+    real(dl) :: xi_f
+    real(dl), intent(IN) :: x
 
-    xi_a = 0._dl
+    xi_f = 0._dl
 
-    end function xi_a
+    end function xi_f
+    
+    function xi_prime_rho(this, x)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: xi_prime_rho
+    real(dl), intent(IN) :: x
+
+    xi_prime_rho = 0._dl
+
+    end function xi_prime_rho
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -106,41 +117,47 @@
     integer, intent(in) :: FeedbackLevel
 
     end subroutine PrintFeedback
-    
-    function integrand_X_de(this, x)
-    class(TDarkEnergyModel), intent(inout) :: this
-    real(dl), intent(in) :: x
-    real(dl) integrand_X_de
-
-    integrand_X_de = 0._dl
-
-    end function integrand_X_de
-    
-    function X_de(this, a)
-    class(TDarkEnergyModel), intent(inout) :: this
-    real(dl), intent(in) :: a
-    real(dl) :: X_de
-
-    X_de = 0._dl
-
-    end function X_de
 
     
-    function eval_X_de_spline(this, a)
+    subroutine bg_eqn(this, n, x, y, dydx)
+    class(TDarkEnergyModel) :: this
+    integer :: n, i
+    real(dl) :: x, y(n)
+    real(dl) :: dydx(n)
+    
+    do i = 1, n
+        dydx(i) = 0._dl
+    end do
+
+    end subroutine bg_eqn
+
+    
+    function eval_grho_de_spline(this, a)
     class(TDarkEnergyModel), intent(inout) :: this
     real(dl), intent(in) :: a
-    real(dl) :: eval_X_de_spline
+    real(dl) :: eval_grho_de_spline
     real(dl) :: al
     
-    eval_X_de_spline = 0._dl
+    eval_grho_de_spline = 0._dl
     
-    end function eval_X_de_spline
+    end function eval_grho_de_spline
+    
+    function eval_grho_c_spline(this, a)
+    class(TDarkEnergyModel), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: eval_grho_c_spline
+    real(dl) :: al
+    
+    eval_grho_c_spline = 0._dl
+    
+    end function eval_grho_c_spline
 
 
-    subroutine Init(this, State)
+    subroutine Init(this, State, grhoc, grhov)
     use classes
     class(TDarkEnergyModel), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
+    real(dl) :: grhoc, grhov
 
     end subroutine Init
 
@@ -205,10 +222,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, vc)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, vc, grhov_t)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, vc
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, vc, grhov_t
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -258,16 +275,6 @@
     call this%sound_speed_a%Init(log(a), cs2_a)
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_a
-    
-    subroutine TDarkEnergyEqnOfState_SetXiTable(this, a, xi_a, n)
-    class(TDarkEnergyEqnOfState) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n), xi_a(n)
-
-    this%use_spline_xi = .true.
-    call this%xi_a_spline%Init(log(a), xi_a)
-    
-    end subroutine TDarkEnergyEqnOfState_SetXiTable
 
 
     function TDarkEnergyEqnOfState_w_de(this, a)
@@ -290,33 +297,33 @@
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
     
-    function TDarkEnergyEqnOfState_xi_a(this, a)
+    function TDarkEnergyEqnOfState_xi_f(this, x)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_xi_a, al
-    real(dl), intent(IN) :: a
+    real(dl) :: TDarkEnergyEqnOfState_xi_f, al
+    real(dl), intent(IN) :: x
 
-    if (this%use_spline_xi) then
-        al=dlog(a)
-        if(al <= this%xi_a_spline%Xmin_interp) then
-            TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(1)
-        elseif(al >= this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(this%xi_a_spline%n)
-        else
-            TDarkEnergyEqnOfState_xi_a = this%xi_a_spline%Value(al)
-        endif
+    if (this%xi0xia) then
+        TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*dlog(x/this%grhov)
     else
-        if (this%cpl_like) then
-            TDarkEnergyEqnOfState_xi_a = -3._dl*(this%xi+this%xi_1*(1._dl-a))+3._dl*this%w_lam-this%xi_1*a/(this%xi+this%xi_1*(1._dl-a))
-        else
-            if (this%xi0xia) then
-                TDarkEnergyEqnOfState_xi_a = this%xi+this%xi_1*(1._dl-a)
-            else
-                TDarkEnergyEqnOfState_xi_a = 0._dl
-            end if
-        end if
-    endif
+        TDarkEnergyEqnOfState_xi_f = 0._dl
+    end if
 
-    end function TDarkEnergyEqnOfState_xi_a
+
+    end function TDarkEnergyEqnOfState_xi_f
+    
+    function TDarkEnergyEqnOfState_xi_prime_rho(this, x)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_xi_prime_rho, al
+    real(dl), intent(IN) :: x
+
+    if (this%xi0xia) then
+        TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1
+    else
+        TDarkEnergyEqnOfState_xi_prime_rho = 0._dl
+    end if
+
+
+    end function TDarkEnergyEqnOfState_xi_prime_rho
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
@@ -355,9 +362,12 @@
     real(dl), intent(IN) :: a
 
     if(.not. this%use_tabulated_w) then
+        if (this%xi0xia) then
+            grho_de=this%eval_grho_de_spline(a)*a**4/this%grhov
+        else
             grho_de = a ** (1._dl - 3. * this%w_lam - 3. * this%wa)
             if (this%wa/=0) grho_de=grho_de*exp(-3. * this%wa * (1._dl - a))
-            if (this%use_spline_xi .or. this%cpl_like .or. this%xi0xia) grho_de=grho_de*exp(-this%eval_X_de_spline(a))
+        end if
     else
         if(a == 0.d0)then
             grho_de = 0.d0      !assume rho_de*a^4-->0, when a-->0, OK if w_de always <0.
@@ -411,63 +421,97 @@
     end subroutine TDarkEnergyEqnOfState_ReadParams
 
 
-    subroutine TDarkEnergyEqnOfState_Init(this, State)
+    subroutine TDarkEnergyEqnOfState_Init(this, State, grhoc, grhov)
     use classes
     class(TDarkEnergyEqnOfState), intent(inout) :: this
     class(TCAMBdata), intent(in), target :: State
     !Constants in SI units
-    real(dl) :: log_a_min, log_a_max
+    real(dl) :: log_a_min, log_a_max, grhoc, grhov, x_ini, x_end
+    integer, parameter ::  NumEqs=2
+    real(dl) c(24),w(NumEqs,9), y(NumEqs)
     integer :: nb_step
     parameter (nb_step = 100)
-    integer i_a
-    real(dl) :: log_a(nb_step), X_de_a(nb_step)
+    integer i_a, ind
+    real(dl) :: log_a(nb_step), grho_c_a(nb_step), grho_de_a(nb_step)
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
         
-    if (this%use_spline_xi .or. this%cpl_like .or. this%xi0xia) then
+    this%xi0xia = this%xi /= 0._dl .or. this%xi_1 /= 0._dl
+    this%grhov = grhov
+    this%grhoc = grhoc
+    
+    if (this%xi0xia) then
         log_a_min = -7._dl
         log_a_max = 0._dl
-        do i_a = 1, nb_step
-            log_a(i_a) = log_a_min + (i_a-1)*(log_a_max-log_a_min)/(nb_step-1)
-            X_de_a(i_a) = this%X_de(10**(log_a(i_a)))
+        grho_c_a(1) = grhoc
+        grho_de_a(1) = grhov
+        log_a(1) = log_a_max
+        do i_a = 2, nb_step
+            log_a(i_a) = log_a_max + (i_a-1)*(log_a_min-log_a_max)/(nb_step-1)
+            x_ini = log_a(i_a-1)
+            x_end = log_a(i_a)
+            y(1) = grho_c_a(i_a-1)
+            y(2) = grho_de_a(i_a-1)
+            ind=1
+            call dverk(this,NumEqs,TDarkEnergyEqnOfState_bg_eqn,x_ini,y,x_end,1e-6_dl,ind,c,NumEqs,w)
+            grho_c_a(i_a) = y(1)
+            grho_de_a(i_a) = y(2)
         end do
-        call this%X_de_spline%Init(log_a, X_de_a)
+        log_a = log_a(size(log_a):1:-1)
+        grho_c_a = grho_c_a(size(grho_c_a):1:-1)
+        grho_de_a = grho_de_a(size(grho_de_a):1:-1)
+        call this%grho_c_spline%Init(log_a, grho_c_a)
+        call this%grho_de_spline%Init(log_a, grho_de_a)
+        
     end if
 
     end subroutine TDarkEnergyEqnOfState_Init
     
     
-    function TDarkEnergyEqnOfState_integrand_X_de(this, x)
-    class(TDarkEnergyEqnOfState), intent(inout) :: this
-    real(dl), intent(in) :: x
-    real(dl) TDarkEnergyEqnOfState_integrand_X_de
-
-    TDarkEnergyEqnOfState_integrand_X_de = this%xi_a(10**x)*dlog(10._dl)
-
-    end function TDarkEnergyEqnOfState_integrand_X_de
+    subroutine TDarkEnergyEqnOfState_bg_eqn(this, n, x, y, dydx)
+    class(TDarkEnergyEqnOfState) :: this
+    integer :: n
+    real(dl) :: x, y(n)
+    real(dl) :: dydx(n)
+    real(dl) :: xi
     
-    function TDarkEnergyEqnOfState_X_de(this, a)
-    class(TDarkEnergyEqnOfState), intent(inout) :: this
-    real(dl), intent(in) :: a
-    real(dl) :: TDarkEnergyEqnOfState_X_de
+    xi = this%xi_f(y(2))
+    dydx(1) = (-3.d0*y(1)-xi*y(2))*dlog(10._dl)
+    dydx(2) = (-3.d0*(1.d0 + this%w_de(10**x))*y(2)+xi*y(2))*dlog(10._dl)
+    end subroutine TDarkEnergyEqnOfState_bg_eqn
     
-    TDarkEnergyEqnOfState_X_de = Integrate_Romberg(this, TDarkEnergyEqnOfState_integrand_X_de,dlog10(a),0._dl,1d-2)
-    end function TDarkEnergyEqnOfState_X_de
-
     
-    function TDarkEnergyEqnOfState_eval_X_de_spline(this, a)
+    function TDarkEnergyEqnOfState_eval_grho_de_spline(this, a)
     class(TDarkEnergyEqnOfState), intent(inout) :: this
     real(dl), intent(in) :: a
-    real(dl) :: TDarkEnergyEqnOfState_eval_X_de_spline
+    real(dl) :: TDarkEnergyEqnOfState_eval_grho_de_spline
     real(dl) :: al
     
     al=dlog10(a)
-    if(al <= this%X_de_spline%Xmin_interp) then
-        TDarkEnergyEqnOfState_eval_X_de_spline= this%X_de_spline%F(1)
+    if(al <= this%grho_de_spline%Xmin_interp) then
+        TDarkEnergyEqnOfState_eval_grho_de_spline= this%grho_de_spline%F(1)
     else
-        TDarkEnergyEqnOfState_eval_X_de_spline = this%X_de_spline%Value(al)
+        TDarkEnergyEqnOfState_eval_grho_de_spline = this%grho_de_spline%Value(al)
     endif
-    end function TDarkEnergyEqnOfState_eval_X_de_spline
-
+    end function TDarkEnergyEqnOfState_eval_grho_de_spline
+    
+    
+    function TDarkEnergyEqnOfState_eval_grho_c_spline(this, a)
+    class(TDarkEnergyEqnOfState), intent(inout) :: this
+    real(dl), intent(in) :: a
+    real(dl) :: TDarkEnergyEqnOfState_eval_grho_c_spline
+    real(dl) :: al
+    
+    if (.not. this%xi0xia) then
+        TDarkEnergyEqnOfState_eval_grho_c_spline = this%grhoc/a**3
+    else
+        al=dlog10(a)
+        if(al <= this%grho_c_spline%Xmin_interp) then
+            TDarkEnergyEqnOfState_eval_grho_c_spline= this%grho_c_spline%F(1)
+        else
+            TDarkEnergyEqnOfState_eval_grho_c_spline = this%grho_c_spline%Value(al)
+        endif
+    end if
+    end function TDarkEnergyEqnOfState_eval_grho_c_spline
 
     end module DarkEnergyInterface
