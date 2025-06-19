@@ -37,6 +37,7 @@
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         real(dl) :: xi = 0._dl ! First IDE parameter
         real(dl) :: xi_1 = 0._dl ! Second IDE parameter
+        logical :: model_log = .true.
         real(dl) :: grhov = 0._dl
         real(dl) :: grhoc = 0._dl
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
@@ -303,7 +304,11 @@
     real(dl), intent(IN) :: x
 
     if (this%xi0xia) then
-        TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*dlog(x/this%grhov)
+        if (this%model_log) then
+            TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*dlog(x/this%grhov)
+        else
+            TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*(x/this%grhov-1)
+        end if
     else
         TDarkEnergyEqnOfState_xi_f = 0._dl
     end if
@@ -317,7 +322,11 @@
     real(dl), intent(IN) :: x
 
     if (this%xi0xia) then
-        TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1
+        if (this%model_log) then
+            TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1
+        else
+            TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1*x/this%grhov
+        end if
     else
         TDarkEnergyEqnOfState_xi_prime_rho = 0._dl
     end if

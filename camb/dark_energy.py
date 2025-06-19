@@ -37,6 +37,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("cs2", c_double, "fluid rest-frame sound speed squared"),
         ("xi", c_double, "First IDE parameter"),
         ("xi_1", c_double, "Second IDE parameter"),
+        ("model_log", c_bool, "which ide model to use"),
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)"),
@@ -48,7 +49,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
                  ('eval_grho_c_spline', [d_arg], c_double)]
     
 
-    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi = None, xi_a = None):
+    def set_params(self, w=-1.0, wa=0, cs2=1.0, xi = None, xi_a = None, model_log=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -62,6 +63,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if (xi_a is not None or xi is not None):
             self.xi = xi
             self.xi_1 = xi_a
+        self.model_log=model_log
                 
         self.validate_params()
 
