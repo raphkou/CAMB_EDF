@@ -21,6 +21,7 @@
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: xi_a
+    procedure :: xi_prime_a
     procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: X_de
@@ -54,6 +55,7 @@
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: xi_a => TDarkEnergyEqnOfState_xi_a
+    procedure :: xi_prime_a => TDarkEnergyEqnOfState_xi_prime_a
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: X_de => TDarkEnergyEqnOfState_X_de
@@ -82,6 +84,15 @@
     xi_a = 0._dl
 
     end function xi_a
+    
+    function xi_prime_a(this, a)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: xi_prime_a, al
+    real(dl), intent(IN) :: a
+
+    xi_prime_a = 0._dl
+
+    end function xi_prime_a
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -205,10 +216,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, vc)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, delta_a)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, vc
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, delta_a
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -265,7 +276,7 @@
     real(dl), intent(in) :: a(n), xi_a(n)
 
     this%use_spline_xi = .true.
-    call this%xi_a_spline%Init(log(a), xi_a)
+    call this%xi_a_spline%Init(a, xi_a)
     
     end subroutine TDarkEnergyEqnOfState_SetXiTable
 
@@ -295,14 +306,13 @@
     real(dl) :: TDarkEnergyEqnOfState_xi_a, al
     real(dl), intent(IN) :: a
 
-    if (this%use_spline_xi) then
-        al=dlog(a)
-        if(al <= this%xi_a_spline%Xmin_interp) then
+    if (this%use_spline_xi) then 
+        if(a <= this%xi_a_spline%Xmin_interp) then
             TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(1)
-        elseif(al >= this%equation_of_state%Xmax_interp) then
+        elseif(a >= this%xi_a_spline%Xmax_interp) then
             TDarkEnergyEqnOfState_xi_a= this%xi_a_spline%F(this%xi_a_spline%n)
         else
-            TDarkEnergyEqnOfState_xi_a = this%xi_a_spline%Value(al)
+            TDarkEnergyEqnOfState_xi_a = this%xi_a_spline%Value(a)
         endif
     else
         if (this%cpl_like) then
@@ -317,6 +327,29 @@
     endif
 
     end function TDarkEnergyEqnOfState_xi_a
+    
+    
+    function TDarkEnergyEqnOfState_xi_prime_a(this, a)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_xi_prime_a, al
+    real(dl), intent(IN) :: a
+
+    if (this%use_spline_xi) then
+        TDarkEnergyEqnOfState_xi_prime_a = this%xi_a_spline%Derivative(a)
+    else
+        if (this%cpl_like) then
+            TDarkEnergyEqnOfState_xi_prime_a = 3._dl*this%xi_1-(this%xi_1*(this%xi+this%xi_1*(1._dl-a)+this%xi_1**2*a))/(this%xi+this%xi_1*(1._dl-a))**2
+            !TDarkEnergyEqnOfState_xi_prime_a = 0._dl
+        else
+            if (this%xi0xia) then
+                TDarkEnergyEqnOfState_xi_prime_a = -this%xi_1
+            else
+                TDarkEnergyEqnOfState_xi_prime_a = 0._dl
+            end if
+        end if
+    endif
+
+    end function TDarkEnergyEqnOfState_xi_prime_a
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)

@@ -255,11 +255,11 @@
 
 
     subroutine TQuintessence_PerturbationEvolve(this, ayprime, w, w_ix, &
-        a, adotoa, k, z, y, cs2_lam, v_T, vc)
+        a, adotoa, k, z, y, cs2_lam, v_T, delta_a)
     !Get conformal time derivatives of the density perturbation and velocity
     class(TQuintessence), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, v_T, vc
+    real(dl), intent(in) :: a, adotoa, w, k, z, y(:), cs2_lam, v_T, delta_a
     integer, intent(in) :: w_ix
     real(dl) clxq, vq, phi, phidot
 
