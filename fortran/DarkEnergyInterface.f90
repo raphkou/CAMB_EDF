@@ -21,7 +21,8 @@
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de
     procedure :: xi_f
-    procedure :: xi_prime_rho
+    procedure :: xi_prime_rho_de
+    procedure :: xi_prime_rho_dm
     procedure :: cs2_de_a
     procedure :: grho_de
     procedure :: eval_grho_de_spline
@@ -37,6 +38,7 @@
         real(dl) :: cs2_lam = 1_dl !rest-frame sound speed, though may not be used
         real(dl) :: xi = 0._dl ! First IDE parameter
         real(dl) :: xi_1 = 0._dl ! Second IDE parameter
+        real(dl) :: xi_2 = 0._dl ! Third IDE parameter
         logical :: model_log = .true.
         real(dl) :: grhov = 0._dl
         real(dl) :: grhoc = 0._dl
@@ -54,7 +56,8 @@
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
     procedure :: xi_f => TDarkEnergyEqnOfState_xi_f
-    procedure :: xi_prime_rho => TDarkEnergyEqnOfState_xi_prime_rho
+    procedure :: xi_prime_rho_de => TDarkEnergyEqnOfState_xi_prime_rho_de
+    procedure :: xi_prime_rho_dm => TDarkEnergyEqnOfState_xi_prime_rho_dm
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: eval_grho_de_spline => TDarkEnergyEqnOfState_eval_grho_de_spline
@@ -77,23 +80,32 @@
 
     end function w_de  ! equation of state of the PPF DE
     
-    function xi_f(this, x)
+    function xi_f(this, grhov, grhoc)
     class(TDarkEnergyModel) :: this
     real(dl) :: xi_f
-    real(dl), intent(IN) :: x
+    real(dl), intent(IN) :: grhov, grhoc
 
     xi_f = 0._dl
 
     end function xi_f
     
-    function xi_prime_rho(this, x)
+    function xi_prime_rho_de(this, grhov, grhoc)
     class(TDarkEnergyModel) :: this
-    real(dl) :: xi_prime_rho
-    real(dl), intent(IN) :: x
+    real(dl) :: xi_prime_rho_de
+    real(dl), intent(IN) :: grhov, grhoc
 
-    xi_prime_rho = 0._dl
+    xi_prime_rho_de = 0._dl
 
-    end function xi_prime_rho
+    end function xi_prime_rho_de
+    
+    function xi_prime_rho_dm(this, grhov, grhoc)
+    class(TDarkEnergyModel) :: this
+    real(dl) :: xi_prime_rho_dm
+    real(dl), intent(IN) :: grhov, grhoc
+
+    xi_prime_rho_dm = 0._dl
+
+    end function xi_prime_rho_dm
     
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
@@ -223,10 +235,10 @@
 
     end function diff_rhopi_Add_Term
 
-    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, vc, grhov_t)
+    subroutine PerturbationEvolve(this, ayprime, w, w_ix, a, adotoa, k, z, y, cs2_lam, v_T, vc, grhov_t, grhoc_t, clxc)
     class(TDarkEnergyModel), intent(in) :: this
     real(dl), intent(inout) :: ayprime(:)
-    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, vc, grhov_t
+    real(dl), intent(in) :: a,adotoa, k, z, y(:), w, cs2_lam, v_T, vc, grhov_t, grhoc_t, clxc
     integer, intent(in) :: w_ix
     end subroutine PerturbationEvolve
 
@@ -298,16 +310,16 @@
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
     
-    function TDarkEnergyEqnOfState_xi_f(this, x)
+    function TDarkEnergyEqnOfState_xi_f(this, grhov, grhoc)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_xi_f, al
-    real(dl), intent(IN) :: x
+    real(dl), intent(IN) :: grhov, grhoc
 
     if (this%xi0xia) then
         if (this%model_log) then
-            TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*dlog(x/this%grhov)
+            TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*dlog(grhov/this%grhov)+this%xi_2*dlog(grhoc/this%grhoc)
         else
-            TDarkEnergyEqnOfState_xi_f = this%xi+this%xi_1*(x/this%grhov-1)
+            TDarkEnergyEqnOfState_xi_f = (this%xi_1*grhov+this%xi_2*grhoc)/(grhov+grhoc)
         end if
     else
         TDarkEnergyEqnOfState_xi_f = 0._dl
@@ -316,23 +328,39 @@
 
     end function TDarkEnergyEqnOfState_xi_f
     
-    function TDarkEnergyEqnOfState_xi_prime_rho(this, x)
+    function TDarkEnergyEqnOfState_xi_prime_rho_de(this, grhov, grhoc)
     class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_xi_prime_rho, al
-    real(dl), intent(IN) :: x
+    real(dl) :: TDarkEnergyEqnOfState_xi_prime_rho_de
+    real(dl), intent(IN) :: grhov, grhoc
 
     if (this%xi0xia) then
         if (this%model_log) then
-            TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1
+            TDarkEnergyEqnOfState_xi_prime_rho_de = this%xi_1
         else
-            TDarkEnergyEqnOfState_xi_prime_rho = this%xi_1*x/this%grhov
+            TDarkEnergyEqnOfState_xi_prime_rho_de = grhov*grhoc*(this%xi_1-this%xi_2)/(grhov+grhoc)**2
         end if
     else
-        TDarkEnergyEqnOfState_xi_prime_rho = 0._dl
+        TDarkEnergyEqnOfState_xi_prime_rho_de = 0._dl
     end if
 
+    end function TDarkEnergyEqnOfState_xi_prime_rho_de
+    
+    function TDarkEnergyEqnOfState_xi_prime_rho_dm(this, grhov, grhoc)
+    class(TDarkEnergyEqnOfState) :: this
+    real(dl) :: TDarkEnergyEqnOfState_xi_prime_rho_dm
+    real(dl), intent(IN) :: grhov, grhoc
 
-    end function TDarkEnergyEqnOfState_xi_prime_rho
+    if (this%xi0xia) then
+        if (this%model_log) then
+            TDarkEnergyEqnOfState_xi_prime_rho_dm = this%xi_2
+        else
+            TDarkEnergyEqnOfState_xi_prime_rho_dm = grhov*grhoc*(this%xi_2-this%xi_1)/(grhov+grhoc)**2
+        end if
+    else
+        TDarkEnergyEqnOfState_xi_prime_rho_dm = 0._dl
+    end if
+
+    end function TDarkEnergyEqnOfState_xi_prime_rho_dm
 
     
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
@@ -445,10 +473,10 @@
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
         &  abs(this%w_lam + 1._dl) < 1.e-6_dl .and. this%wa==0._dl
         
-    this%xi0xia = this%xi /= 0._dl .or. this%xi_1 /= 0._dl
+    this%xi0xia = this%xi /= 0._dl .or. this%xi_1 /= 0._dl .or. this%xi_2 /= 0._dl
     this%grhov = grhov
     this%grhoc = grhoc
-    
+
     if (this%xi0xia) then
         log_a_min = -7._dl
         log_a_max = 0._dl
@@ -484,7 +512,7 @@
     real(dl) :: dydx(n)
     real(dl) :: xi
     
-    xi = this%xi_f(y(2))
+    xi = this%xi_f(y(2), y(1))
     dydx(1) = (-3.d0*y(1)-xi*y(2))*dlog(10._dl)
     dydx(2) = (-3.d0*(1.d0 + this%w_de(10**x))*y(2)+xi*y(2))*dlog(10._dl)
     end subroutine TDarkEnergyEqnOfState_bg_eqn

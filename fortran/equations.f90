@@ -1924,7 +1924,7 @@
     !get eta_s*k, where eta_s is synchronous gauge variable
 
     !  CDM
-    y(ix_clxc)=InitVec(i_clxc)
+    y(ix_clxc)=(1._dl+CP%DarkEnergy%xi_f(CP%DarkEnergy%eval_grho_de_spline(1e-7_dl), CP%DarkEnergy%eval_grho_c_spline(1e-7_dl))/3._dl*(CP%DarkEnergy%eval_grho_de_spline(1e-7_dl)/CP%DarkEnergy%eval_grho_c_spline(1e-7_dl)))*InitVec(i_clxc)
     y(ix_vc)=InitVec(i_vc)
 
     !  Baryons
@@ -1943,7 +1943,7 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
-    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_f(CP%DarkEnergy%eval_grho_de_spline(1e-7_dl))/3._dl)*InitVec(i_clxc)
+    InitVec(i_clxde)=(1._dl+CP%DarkEnergy%w_de(0._dl)-CP%DarkEnergy%xi_f(CP%DarkEnergy%eval_grho_de_spline(1e-7_dl), CP%DarkEnergy%eval_grho_c_spline(1e-7_dl))/3._dl)*InitVec(i_clxc)
     InitVec(i_clxde+1)=InitVec(i_vc)
 
     if (CP%Evolve_delta_Ts) then
@@ -2319,9 +2319,9 @@
     
     if (.not. EV%is_cosmological_constant) &
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc, grhov_t)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_lam, v_T, vc, grhov_t, grhoc_t, ay(ix_clxc))
 
-    clxcdot=-k*z-k*vc-grhov_t/grhoc_t*(State%CP%DarkEnergy%xi_f(grhov_t/a**2)*(k*v_T/3._dl+k*z/3._dl)+adotoa*(State%CP%DarkEnergy%xi_f(grhov_t/a**2)*(ay(EV%w_ix)-ay(ix_clxc))+State%CP%DarkEnergy%xi_prime_rho(grhov_t/a**2)*ay(EV%w_ix)))
+    clxcdot=-k*z-k*vc-grhov_t/grhoc_t*(State%CP%DarkEnergy%xi_f(grhov_t/a**2,grhoc_t/a**2)*(k*v_T/3._dl+k*z/3._dl)+adotoa*State%CP%DarkEnergy%xi_f(grhov_t/a**2,grhoc_t/a**2)*(ay(EV%w_ix)-ay(ix_clxc))+adotoa*(State%CP%DarkEnergy%xi_prime_rho_de(grhov_t/a**2,grhoc_t/a**2)*ay(EV%w_ix)+State%CP%DarkEnergy%xi_prime_rho_dm(grhov_t/a**2,grhoc_t/a**2)*ay(ix_clxc)))
 
     ayprime(ix_clxc)=clxcdot
     ayprime(ix_vc)=-adotoa*vc
