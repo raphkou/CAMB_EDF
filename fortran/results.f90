@@ -331,7 +331,7 @@
     !Constants in SI units
     real(dl) :: log_a_min, log_a_max
     integer :: nb_step
-    parameter (nb_step = 100)
+    parameter (nb_step = 500)
     integer i_a
     real(dl) :: log_a(nb_step), X_cdm_a(nb_step)
 
@@ -1299,7 +1299,7 @@
     real(dl), intent(in) :: a
     real(dl) :: X_cdm
     
-    X_cdm = Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-2)
+    X_cdm = Integrate_Romberg(this, integrand_X_cdm,dlog10(a),0._dl,1d-5)
 
     end function X_cdm
 

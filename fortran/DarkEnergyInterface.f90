@@ -451,7 +451,7 @@
     !Constants in SI units
     real(dl) :: log_a_min, log_a_max
     integer :: nb_step
-    parameter (nb_step = 100)
+    parameter (nb_step = 500)
     integer i_a
     real(dl) :: log_a(nb_step), X_de_a(nb_step)
     this%is_cosmological_constant = .not. this%use_tabulated_w .and. &
@@ -484,7 +484,7 @@
     real(dl), intent(in) :: a
     real(dl) :: TDarkEnergyEqnOfState_X_de
     
-    TDarkEnergyEqnOfState_X_de = Integrate_Romberg(this, TDarkEnergyEqnOfState_integrand_X_de,dlog10(a),0._dl,1d-2)
+    TDarkEnergyEqnOfState_X_de = Integrate_Romberg(this, TDarkEnergyEqnOfState_integrand_X_de,dlog10(a),0._dl,1d-5)
     end function TDarkEnergyEqnOfState_X_de
 
     
