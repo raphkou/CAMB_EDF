@@ -15,7 +15,7 @@ class DarkEnergyModel(F2003Class):
         ("omch2_eff", c_double),
         ("Omega_DE_eff", c_double),
         ("Omega_c_eff", c_double),
-        ("xi", c_double)
+        ("omde_tot", c_double)
     ]
 
     def validate_params(self):
@@ -49,20 +49,17 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     _methods_ = [
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetDeltaTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('grho_de', [POINTER(c_double)], c_double),
-        ('grho_cdm', [POINTER(c_double)], c_double),
         ('w_de', [POINTER(c_double)], c_double),
         ('w_de_only', [POINTER(c_double)], c_double),
         ('dw_da', [POINTER(c_double), POINTER(c_int)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0,
-                   is_df_model=False, omch2_eff=0, ombh2=0, H0=67, xi=1,
-                   amp_delta=None, amp_cs2=None, pars=None):
+                   is_df_model=False, omch2_eff=0, ombh2=0, omnuh2=0, H0=67, pars=None):
         """
          Set the parameters so that P(a)/rho(a) = w(a) = w + (1-a)*wa
 
@@ -73,41 +70,27 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
-        self.validate_params()
         
         if (is_df_model == True):
             self.is_df_model = True
             self.omch2_eff = omch2_eff
             self.Omega_c_eff = omch2_eff/(H0/100)**2
-            self.Omega_DE_eff = 1-(omch2_eff+ombh2)/(H0/100)**2
-            self.xi = xi
-            
-            folder = "/Users/kou/Documents/Professionnel/Sussex/CAMB/data/"
-            eigenvectors_delta = np.load(folder+"eigenvectors_delta_50.npy")
-            eigenvectors_cs2 = np.load(folder+"eigenvectors_cs2_50.npy")
-            a_edges = np.load(folder+"a_edges.npy")
-            
-            delta = eigenvectors_delta[:,0:len(amp_delta)]@amp_delta
-            delta_spline = CubicSpline(a_edges,delta)
-            
-            a = np.logspace(-6,0,200)
-            delta = delta_spline(a)
-            ind = np.where(a>5e-3)
-            delta[ind[0]] = delta[ind[0][0]]
-            delta *= np.exp(-(a/5e-3)**2)*(1-np.exp(-(a/2e-5)**2))
-            
-            log_cs2 = eigenvectors_cs2[:,0:len(amp_cs2)]@amp_cs2
-            log_cs2_spline = CubicSpline(a_edges,log_cs2)
-            log_cs2_a = log_cs2_spline(a)
-            log_cs2_a[ind[0]] = log_cs2_a[ind[0][0]]
-            cs2_a = 10**log_cs2_a*np.exp(-(a/5e-3)**2)*(1-np.exp(-(a/2e-5)**2))
-            
-            self.set_Delta_a_table(a, delta)
-            self.set_cs2_a_table(a, cs2_a)
+            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2
+            self.omde_tot = self.omch2_eff + self.Omega_DE_eff*(H0/100)**2
+
+            self.a = np.logspace(-7,0,500)
+            w_de = w+wa*(1-self.a)
+            Omega_DE = self.Omega_DE_eff*np.exp(-3*wa*(1-self.a))*self.a**(-3*(1+w+wa))
+            Omega_DM = self.Omega_c_eff/self.a**3
+            w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
+            self.set_w_a_table(self.a,w_a)
+
             
             if pars is not None:
-                pars.DF_a = a
-                pars.DF_delta = delta
+                pars.DF_a = self.a
+                pars.DF_w = w_a
+                
+        self.validate_params()
     
 
     def validate_params(self):
@@ -133,28 +116,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         w = np.ascontiguousarray(w, dtype=np.float64)
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
-
-        return self
-    
-    def set_Delta_a_table(self, a, delta):
-        """
-        Set delta(a) from numerical values (used as cublic spline). Note this is quite slow.
-
-        :param a: array of scale factors
-        :param delta: array of delta(a)
-        :return: self
-        """
-        if len(a) != len(delta):
-            raise ValueError('Dark energy delta(a) table non-equal sized arrays')
-        if not np.isclose(a[-1], 1):
-            raise ValueError('Dark energy delta(a) arrays must end at a=1')
-        if np.any(a <= 0):
-            raise ValueError('Dark energy delta(a) table cannot be set for a<=0')
-
-        a = np.ascontiguousarray(a, dtype=np.float64)
-        delta = np.ascontiguousarray(delta, dtype=np.float64)
-
-        self.f_SetDeltaTable(a, delta, byref(c_int(len(a))))
 
         return self
 
@@ -225,11 +186,16 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 def update_DF_model(pars, H0):
     pars.DarkEnergy.omch2_eff = pars.omch2_eff
     pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
-    pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2)/(H0/100)**2
-    pars.DarkEnergy.set_Delta_a_table(pars.DF_a, pars.DF_delta)
+    pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2+pars.omnuh2)/(H0/100)**2
+    pars.DarkEnergy.omde_tot = pars.DarkEnergy.omch2_eff + pars.DarkEnergy.Omega_DE_eff*(H0/100)**2
+    w_de = pars.DarkEnergy.w+pars.DarkEnergy.wa*(1-pars.DF_a)
+    Omega_DE = pars.DarkEnergy.Omega_DE_eff*np.exp(-3*pars.DarkEnergy.wa*(1-a))*a**(-3*(1+pars.DarkEnergy.w+pars.DarkEnergy.wa))
+    Omega_DM = pars.DarkEnergy.Omega_c_eff/pars.DF_a**3
+    w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
+    pars.DarkEnergy.set_w_a_table(pars.DF_a,w_a)
     pars.H0 = H0
-
-
+                
+                
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
@@ -244,7 +210,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     def validate_params(self):
         super().validate_params()
         if not self.use_tabulated_w:
-            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6):
+            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6) and self.is_df_model==False:
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
     def set_w_a_table(self, a, w):

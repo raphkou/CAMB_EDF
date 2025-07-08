@@ -548,7 +548,7 @@
         if (.not. State%CP%DarkEnergy%is_df_model) then
             Calc%OmegaT=(State%CP%omch2+State%CP%ombh2)/H**2        !total dark matter + baryons
         else
-            Calc%OmegaT=(State%CP%DarkEnergy%omch2_eff+State%CP%ombh2)/H**2
+            Calc%OmegaT=(State%CP%DarkEnergy%omde_tot+State%CP%ombh2)/H**2
         endif
         Calc%OmegaK=State%CP%omk       !curvature
 

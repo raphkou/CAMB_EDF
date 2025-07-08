@@ -1825,7 +1825,7 @@
     grhonu=rhomass+State%grhornomass
     
     if (CP%DarkEnergy%is_df_model) then
-        om = (State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+grhonu))
+        om = (State%grhob+State%grhov)/sqrt(3*(State%grhog+grhonu))
     else
         om = (State%grhob+State%grhoc)/sqrt(3*(State%grhog+grhonu))
     end if
@@ -1835,7 +1835,7 @@
 
     Rg = 1-Rv
     if (CP%DarkEnergy%is_df_model) then
-        Rc=CP%DarkEnergy%omch2_eff/(CP%DarkEnergy%omch2_eff+CP%ombh2)
+        Rc=CP%DarkEnergy%omde_tot/(CP%DarkEnergy%omde_tot+CP%ombh2)
     else
         Rc=CP%omch2/(CP%omch2+CP%ombh2)
     end if
@@ -1858,9 +1858,6 @@
     initv(1,i_clxr)= initv(1,i_clxg)
     initv(1,i_clxb)=0.75_dl*initv(1,i_clxg)
     initv(1,i_clxc)=initv(1,i_clxb)
-    if (CP%DarkEnergy%is_df_model) then
-         initv(1,i_clxde)=initv(1,i_clxc)
-     endif
     initv(1,i_qg)=initv(1,i_clxg)*x/9._dl
     initv(1,i_qr)=-chi*EV%Kf(1)*(4*Rv+23)/Rp15*x3/27
     initv(1,i_vb)=0.75_dl*initv(1,i_qg)
@@ -1951,6 +1948,9 @@
         y(EV%w_ix:EV%w_ix + CP%DarkEnergy%num_perturb_equations - 1) = &
             InitVec(i_clxde:i_clxde + CP%DarkEnergy%num_perturb_equations - 1)
     end if
+    if (CP%DarkEnergy%is_df_model) then
+        y(EV%w_ix) = y(ix_clxc)
+    end if
 
     if (CP%Evolve_delta_Ts) then
         y(EV%Ts_ix) = y(EV%g_ix)/4
@@ -2033,7 +2033,7 @@
     if (.not. CP%DarkEnergy%is_df_model) then
         omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
     else
-        omtau = tau*(State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+        omtau = tau*(State%grhob+State%grhov)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
     end if
     a=tau*State%adotrad*(1+omtau/4)
 
@@ -2095,7 +2095,7 @@
     if (.not. CP%DarkEnergy%is_df_model) then
         omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+State%grhornomass))
     else
-        omtau = tau*(State%grhob+State%grhoc_eff)/sqrt(3*(State%grhog+State%grhornomass))
+        omtau = tau*(State%grhob+State%grhov)/sqrt(3*(State%grhog+State%grhornomass))
     end if
 
     a=tau*State%adotrad*(1+omtau/4)
@@ -2176,7 +2176,7 @@
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,clxv
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2218,13 +2218,12 @@
     !  Baryon variables
     clxb=ay(ix_clxb)
     vb=ay(ix_vb)
+    
+    clxv = ay(EV%w_ix)
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
     grhoc_t=State%grhoc/a
-    if (State%CP%DarkEnergy%is_df_model) then
-        grhoc_eff_t=State%grhocrit*State%CP%DarkEnergy%grho_cdm(a)
-    end if
 
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
@@ -2241,7 +2240,7 @@
 
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     if (State%CP%DarkEnergy%is_df_model) then
-        dgrho_matter_eff=grhob_t*clxb+grhoc_eff_t*clxc
+        dgrho_matter = dgrho_matter+grhov_t*clxv
     end if
     !  8*pi*a*a*SUM[(rho_i+p_i)*v_i]
     dgq=grhob_t*vb
@@ -2255,9 +2254,11 @@
 
     grho_matter=grhonu_t+grhob_t+grhoc_t
     if (State%CP%DarkEnergy%is_df_model) then
-        grho_matter_eff=grhonu_t+grhob_t+grhoc_eff_t
+        grho_matter = grho_matter+grhov_t
+        grho = grho_matter+grhor_t+grhog_t
+    else
+        grho = grho_matter+grhor_t+grhog_t+grhov_t
     end if
-    grho = grho_matter+grhor_t+grhog_t+grhov_t
     gpres_noDE = gpres_nu + (grhor_t + grhog_t)/3
 
     if (State%flat) then
@@ -2269,13 +2270,6 @@
     end if
 
     dgrho = dgrho_matter
-
-    if (State%CP%DarkEnergy%is_df_model) then
-        call State%CP%DarkEnergy%PerturbedStressEnergy(dgrho_de, dgq_de, &
-            a, dgq, dgrho, grho, grhov_t, w_dark_energy_t, gpres_noDE, etak, &
-            adotoa, k, EV%Kf(1), ay, ayprime, EV%w_ix)
-        dgrho = dgrho + dgrho_de
-    end if
 
     if (EV%no_nu_multpoles) then
         !RSA approximation of arXiv:1104.2933, dropping opactity terms in the velocity
@@ -2342,41 +2336,11 @@
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
 
-    ! Default rest frame DE sound speed
-    cs2_eff = State%CP%DarkEnergy%cs2_de_a(a)*State%CP%DarkEnergy%cs2_de_k(k)*State%CP%DarkEnergy%cs2_de_ktau(k*tau)
-
-    if (State%CP%DarkEnergy%is_df_model) then
-        ! Dark energy only density perturbation
-        
-        dgrho_DE_only = dgrho_de-grhoc_eff_t*clxc
-        grho_DE_only_t = grhov_t-grhoc_eff_t
-        cs2_de  = State%CP%DarkEnergy%cs2_de_a(a)*State%CP%DarkEnergy%cs2_de_k(k)*State%CP%DarkEnergy%cs2_de_ktau(k*tau)
-
-        w_DF = w_dark_energy_t
-        w_DE = State%CP%DarkEnergy%w_de_only(a)
-        ! If we've got almost exactly w_DE = -1, then the adiabatic sound speed diverges and we impose cs2_eff = 0
-        !if (abs(w_DE + 1) < 1e-5) then
-        if (abs(w_DE + 1) < 1e-5) then
-            cs2_eff = 0._dl
-        else
-            dw_DF_da = State%CP%DarkEnergy%dw_da(a, 0)
-            dw_DE_da = State%CP%DarkEnergy%dw_da(a, 1)
-            ! Adiabatic sound speed for dark energy
-            cad2_DE = w_DE-a*dw_DE_da/(3._dl*(1._dl+w_DE))
-            ! Adiabatic sound speed for (total) dark fluid
-            cad2_DF = w_DF-a*dw_DF_da/(3._dl*(1._dl+w_DF))
-            v_DF_t = ay(EV%w_ix + 1)
-            v_DE_t = v_DF_t*grhov_t/grho_DE_only_t*(1._dl+w_DF)/(1._dl+w_DE)
-            ! (Total) dark fluid sound speed in the DM frame
-            cs2_DF_DM = 1._dl/dgrho_de*(cs2_de*dgrho_DE_only+3*adotoa*(1+w_DE)*(cs2_de-cad2_DE)*v_DE_t/k*grho_DE_only_t)
-            cs2_eff = (cs2_DF_DM+3._dl*adotoa*(1._dl+w_DF)*cad2_DF*v_DF_t/k*grhov_t/dgrho_de) &
-                        / (1._dl+3._dl*adotoa*(1._dl+w_DF)*v_DF_t/k*grhov_t/dgrho_de)
-        end if    
-    end if
 
     if (.not. EV%is_cosmological_constant) &
+        cs2_de = State%CP%DarkEnergy%cs2_de_a(a)
         call State%CP%DarkEnergy%PerturbationEvolve(ayprime, w_dark_energy_t, &
-        EV%w_ix, a, adotoa, k, z, ay, cs2_eff)
+        EV%w_ix, a, adotoa, k, z, ay, cs2_de)
 
     !  CDM equation of motion
     clxcdot=-k*z
@@ -2773,13 +2737,8 @@
             EV%OutputTransfer(Transfer_r) = clxr
             EV%OutputTransfer(Transfer_nu) = clxnu
             EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-            if (.not. State%CP%DarkEnergy%is_df_model) then
-                EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-                EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
-            else
-                EV%OutputTransfer(Transfer_tot) =  dgrho_matter_eff/grho_matter_eff !includes neutrinos
-                EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter_eff
-            end if
+            EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa

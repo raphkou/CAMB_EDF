@@ -294,7 +294,7 @@
                 if (.not. Params%DarkEnergy%is_df_model) then
                     this%omm0 = (Params%omch2+Params%ombh2+Params%omnuh2)/h2
                 else
-                    this%omm0 = (Params%DarkEnergy%omch2_eff+Params%ombh2+Params%omnuh2)/h2
+                    this%omm0 = (Params%DarkEnergy%omde_tot+Params%ombh2+Params%omnuh2)/h2
                 end if
                 this%fnu = Params%omnuh2/h2/this%omm0
 
@@ -317,8 +317,8 @@
                         this%om_m = omega_m(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
                         this%om_v = omega_v(a, this%omm0, State%omega_de, this%w_hf, this%wa_hf)
                     else
-                        this%om_m = omega_m(a, this%omm0, State%omega_de-Params%omch2/h2, -1.0d0, 0.0d0)
-                        this%om_v = omega_v(a, this%omm0, State%omega_de-Params%omch2/h2, -1.0d0, 0.0d0)
+                        this%om_m = omega_m(a, this%omm0, 0.0d0, -1.0d0, 0.0d0)
+                        this%om_v = omega_v(a, this%omm0, 0.0d0, -1.0d0, 0.0d0)
                     end if
 
                     this%acur = a
@@ -1059,13 +1059,12 @@
             cosm%om_v=State%omega_de
             call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
         else
-            cosm%om_m=(CP%DarkEnergy%omch2_eff+CP%ombh2+CP%omnuh2)/h2
-            cosm%om_c=CP%DarkEnergy%omch2_eff/h2
+            cosm%om_m=(CP%DarkEnergy%omde_tot+CP%ombh2+CP%omnuh2)/h2
+            cosm%om_c=CP%DarkEnergy%omde_tot/h2
             cosm%om_b=CP%ombh2/h2
             cosm%om_nu=CP%omnuh2/h2
-            cosm%om_v=State%omega_de-cosm%om_c
-            cosm%w = -1.0d0
-            cosm%wa = 0.0d0
+            cosm%om_v=0.0d0
+            call CP%DarkEnergy%Effective_w_wa(cosm%w, cosm%wa)
         end if
         cosm%f_nu=cosm%om_nu/cosm%om_m
         cosm%h=CP%H0/100

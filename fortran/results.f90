@@ -458,9 +458,6 @@
         this%Omega_de = 1 -(this%CP%omch2 + this%CP%ombh2 + this%CP%omnuh2)/h2 - this%CP%omk  &
             - (this%grhornomass + this%grhog)/this%grhocrit
         this%grhov=this%grhocrit*this%Omega_de
-        if (this%CP%DarkEnergy%is_df_model) then
-            this%grhoc_eff = this%grhocrit*this%CP%DarkEnergy%omch2_eff/h2
-        endif
 
         !  adotrad gives da/dtau in the asymptotic radiation-dominated era:
         this%adotrad = sqrt((this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates)))/3)
@@ -476,7 +473,7 @@
             this%z_eq = (this%grhob+this%grhoc)/&
                 (this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
         else
-            this%z_eq = (this%grhob+this%grhoc_eff)/&
+            this%z_eq = (this%grhob+this%grhov)/&
                 (this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
         endif
         
@@ -878,7 +875,7 @@
                 om = (this%grhob+this%grhoc)/&
                     sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
             else
-                om = (this%grhob+this%grhoc_eff)/&
+                om = (this%grhob+this%grhov)/&
                     sqrt(3*(this%grhog+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))+this%grhornomass))
             endif
             arr(i) = 1/(this%adotrad*tau(i)*(1+om*tau(i)/4))-1
@@ -928,7 +925,7 @@
     if (.not. this%CP%DarkEnergy%is_df_model) then
         omdmh2 = (this%CP%omch2+this%CP%omnuh2)
     else
-        omdmh2 = (this%CP%DarkEnergy%omch2_eff+this%CP%omnuh2)
+        omdmh2 = (this%CP%DarkEnergy%omde_tot+this%CP%omnuh2)
     endif
 
     !!From Hu & Sugiyama
@@ -1788,7 +1785,7 @@
         om = (State%grhob+State%grhoc)/&
             sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
     else
-        om = (State%grhob+State%grhoc_eff)/&
+        om = (State%grhob+State%grhov)/&
             sqrt(3*(State%grhog+sum(State%grhormass(1:CP%Nu_mass_eigenstates))+State%grhornomass))
     endif
     a0=this%tauminn*State%adotrad*(1+om*this%tauminn/4)

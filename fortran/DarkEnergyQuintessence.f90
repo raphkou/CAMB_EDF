@@ -131,7 +131,7 @@
     this%omch2_eff = 0.d0
     this%Omega_DE_eff = 0.d0
     this%Omega_c_eff = 0.d0
-    this%xi = 1._dl
+    this%omde_tot = 0.d0
 
     end subroutine  TQuintessence_Init
 

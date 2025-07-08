@@ -14,7 +14,7 @@
         real(dl) :: omch2_eff = 0.d0
         real(dl) :: Omega_DE_eff = 0.d0
         real(dl) :: Omega_c_eff = 0.d0
-        real(dl) :: xi = 1._dl
+        real(dl) :: omde_tot = 0.d0
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure
@@ -52,7 +52,6 @@
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
     procedure :: Init => TDarkEnergyEqnOfState_Init
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
-    procedure :: SetDeltaTable => TDarkEnergyEqnOfState_SetDeltaTable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: SetCs2Table_k => TDarkEnergyEqnOfState_SetCs2Table_k
     procedure :: SetCs2Table_ktau => TDarkEnergyEqnOfState_SetCs2Table_ktau
@@ -64,7 +63,6 @@
     procedure :: cs2_de_k => TDarkEnergyEqnOfState_cs2_de_k
     procedure :: cs2_de_ktau => TDarkEnergyEqnOfState_cs2_de_ktau
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
-    procedure :: grho_cdm => TDarkEnergyEqnOfState_grho_cdm
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
     end type TDarkEnergyEqnOfState
 
@@ -231,10 +229,8 @@
     real(dl), intent(out) :: y(:)
     real(dl), intent(in) :: a, tau, k
     !Get intinitial values for perturbations at a (or tau)
-    if (.not. this%is_df_model) then
-        !For standard adiabatic perturbations can usually just set to zero to good accuracy
-        y = 0
-    endif
+    !For standard adiabatic perturbations can usually just set to zero to good accuracy
+    y = 0
     
     end subroutine PerturbationInitial
 
@@ -260,51 +256,6 @@
     this%wa = -this%equation_of_state%Derivative(0._dl)
 
     end subroutine TDarkEnergyEqnOfState_SetwTable
-    
-    subroutine TDarkEnergyEqnOfState_SetDeltaTable(this, a, delta, n)
-    class(TDarkEnergyEqnOfState) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: a(n), delta(n)
-    real(dl), allocatable :: integral(:)
-    real(dl) :: w_DF(n), w_DE(n), rho_DE(n), rho_CDM(n), fraction_DE, fraction_CDM
-    integer l
-
-    if (abs(a(size(a)) -1) > 1e-5) error stop 'delta table must end at a=1'
-    
-    this%use_tabulated_w = .true.
-    call this%rho_DF%Init(log(a), log((this%Omega_DE_eff+this%Omega_c_eff/a**3)*(1._dl+delta)))
-    do l=1,n
-        if (abs(delta(l)/this%xi) < 1e-3) then
-            fraction_DE = this%xi**2/(2._dl*(this%xi-delta(l)))
-            fraction_CDM = -this%xi**2/(2._dl*(this%xi+delta(l)))
-        else
-            fraction_DE = delta(l)/(1._dl-exp(-2._dl*delta(l)/this%xi))
-            fraction_CDM = delta(l)/(1._dl-exp(2._dl*delta(l)/this%xi))
-        end if
-        rho_DE(l) = this%Omega_DE_eff+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_DE
-        rho_CDM(l) = this%Omega_c_eff/a(l)**3+(this%Omega_DE_eff+this%Omega_c_eff/a(l)**3)*fraction_CDM
-    end do
-    call this%rho_DE%Init(log(a), log(rho_DE))
-    call this%rho_CDM%Init(log(a), log(rho_CDM))
-    do l=1,n
-        w_DF(l) = -1._dl-1._dl/3._dl*this%rho_DF%Derivative(log(a(l)))
-        w_DE(l) = -1._dl-1._dl/3._dl*this%rho_DE%Derivative(log(a(l)))
-    end do
-    call this%equation_of_state%Init(log(a), w_DF)
-    call this%equation_of_state_DE_only%Init(log(a), w_DE)
-    allocate(integral(this%equation_of_state%n))
-    ! log (rho) =  -3 int dlna (1+w)
-    call this%equation_of_state%IntegralArray(integral)
-    integral  = -3*( (this%equation_of_state%X-this%equation_of_state%X(1)) + integral) + 4*this%equation_of_state%X
-    integral = integral - integral(this%equation_of_state%n) !log(a^4 rho_de)) normalized to 0 at a=1
-    call this%logdensity%Init(this%equation_of_state%X, integral)
-
-    !Set w and wa to values today (e.g. as too simple first guess for approx fittings etc).
-    this%w_lam = w_DF(size(a))
-    this%wa = -this%equation_of_state%Derivative(0._dl)
-
-    end subroutine TDarkEnergyEqnOfState_SetDeltaTable
-
 
     subroutine TDarkEnergyEqnOfState_SetCs2Table_a(this, a, cs2_a, n)
     class(TDarkEnergyEqnOfState) :: this
@@ -487,40 +438,18 @@
                 fint= 1
             else
                 al = dlog(a)
-                if (.not. this%is_df_model) then
-                    if(al <= this%logdensity%X(1)) then
-                        ! assume here w=w_de(a_min)
-                        fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1))*(al - this%logdensity%X(1)))
-                    else
-                        fint = exp(this%logdensity%Value(al))
-                    endif
+                if(al <= this%logdensity%X(1)) then
+                    ! assume here w=w_de(a_min)
+                    fint = exp(this%logdensity%F(1) + (1. - 3. * this%equation_of_state%F(1))*(al - this%logdensity%X(1)))
                 else
-                    if(al <= this%rho_DF%X(1)) then
-                        fint = (this%Omega_c_eff*a+this%Omega_DE_eff*a**4)/exp(this%rho_DF%Value(0._dl))
-                    else
-                        fint = exp(this%rho_DF%Value(al))*a**4/exp(this%rho_DF%Value(0._dl))
-                    end if
-                end if
+                    fint = exp(this%logdensity%Value(al))
+                endif
             end if
             grho_de = fint
         endif
     endif
 
     end function TDarkEnergyEqnOfState_grho_de
-    
-    function TDarkEnergyEqnOfState_grho_cdm(this, a) result(grho_cdm)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: grho_cdm, al, fint
-    real(dl), intent(IN) :: a
-    
-    al = dlog(a)
-    if(al <= this%rho_CDM%X(1)) then
-        grho_cdm = this%Omega_c_eff/a-this%xi/2._dl*(this%Omega_c_eff/a+this%Omega_DE_eff*a**2)
-    else
-        grho_cdm = exp(this%rho_CDM%Value(al))*a**2
-    end if
-
-    end function TDarkEnergyEqnOfState_grho_cdm
 
     subroutine TDarkEnergyEqnOfState_PrintFeedback(this, FeedbackLevel)
     class(TDarkEnergyEqnOfState) :: this

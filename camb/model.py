@@ -433,7 +433,7 @@ class CAMBparams(F2003Class):
                       tau: Optional[float] = None, zrei: Optional[float] = None,
                       Alens=1.0, bbn_predictor: Union[None, str, bbn.BBNPredictor] = None,
                       theta_H0_range=(10, 100), setter_H0=None, 
-                      is_df_model=False, omch2_eff=None, amp_delta=None, amp_cs2=None):
+                      is_df_model=False, omch2_eff=None):
         r"""
         Sets cosmological parameters in terms of physical densities and parameters (e.g. as used in Planck analyses).
         Default settings give a single distinct neutrino mass eigenstate, by default one neutrino with mnu = 0.06eV.
@@ -528,12 +528,6 @@ class CAMBparams(F2003Class):
 
         if omch2_eff is not None:
             self.omch2_eff = omch2_eff
-            
-        if amp_delta is not None:
-            self.amp_delta = amp_delta
-            
-        if amp_cs2 is not None:
-            self.amp_cs2 = amp_cs2
 
         if cosmomc_theta or thetastar:
             if H0 is not None:
