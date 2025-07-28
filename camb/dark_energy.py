@@ -1,6 +1,6 @@
-from .baseconfig import F2003Class, fortran_class, numpy_1d, CAMBError, np, \
-    AllocatableArrayDouble, f_pointer
-from ctypes import c_int, c_double, byref, POINTER, c_bool
+from ctypes import POINTER, byref, c_bool, c_double, c_int
+
+from .baseconfig import AllocatableArrayDouble, CAMBError, F2003Class, f_pointer, fortran_class, np, numpy_1d
 from scipy.interpolate import CubicSpline
 
 
@@ -18,8 +18,10 @@ class DarkEnergyModel(F2003Class):
         ("omde_tot", c_double)
     ]
 
-    def validate_params(self):
-        return True
+    _fields_ = [("__is_cosmological_constant", c_bool), ("__num_perturb_equations", c_int)]
+
+    def validate_params(self) -> None:
+        pass
 
 
 class DarkEnergyEqnOfState(DarkEnergyModel):
@@ -33,8 +35,9 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
     set a general interpolated P(k) model from a python function.
 
     """
-    _fortran_class_module_ = 'DarkEnergyInterface'
-    _fortran_class_name_ = 'TDarkEnergyEqnOfState'
+
+    _fortran_class_module_ = "DarkEnergyInterface"
+    _fortran_class_name_ = "TDarkEnergyEqnOfState"
 
     _fields_ = [
         ("w", c_double, "w(0)"),
@@ -70,7 +73,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.w = w
         self.wa = wa
         self.cs2 = cs2
-        
+
         if (is_df_model == True):
             self.is_df_model = True
             self.omch2_eff = omch2_eff
@@ -89,28 +92,28 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
                 pars.DF_w = w_a
                 pars.DF_w0 = w
                 pars.DF_wa = wa
-                
+
         self.validate_params()
-    
+
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
-            raise CAMBError('dark energy model has w + wa > 0, giving w>0 at high redshift')
+            raise CAMBError("dark energy model has w + wa > 0, giving w>0 at high redshift")
 
-    def set_w_a_table(self, a, w):
+    def set_w_a_table(self, a, w) -> "DarkEnergyEqnOfState":
         """
-        Set w(a) from numerical values (used as cublic spline). Note this is quite slow.
+        Set w(a) from numerical values (used as cubic spline). Note this is quite slow.
 
         :param a: array of scale factors
         :param w: array of w(a)
         :return: self
         """
         if len(a) != len(w):
-            raise ValueError('Dark energy w(a) table non-equal sized arrays')
+            raise ValueError("Dark energy w(a) table non-equal sized arrays")
         if not np.isclose(a[-1], 1):
-            raise ValueError('Dark energy w(a) arrays must end at a=1')
+            raise ValueError("Dark energy w(a) arrays must end at a=1")
         if np.any(a <= 0):
-            raise ValueError('Dark energy w(a) table cannot be set for a<=0')
+            raise ValueError("Dark energy w(a) table cannot be set for a<=0")
 
         a = np.ascontiguousarray(a, dtype=np.float64)
         w = np.ascontiguousarray(w, dtype=np.float64)
@@ -121,7 +124,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
     def set_cs2_a_table(self, a, cs2):
         """
-        Set cs2(a) from numerical values (used as cublic spline). 
+        Set cs2(a) from numerical values (used as cublic spline).
 
         :param a: array of scale factors
         :param cs2: array of cs2(a)
@@ -140,10 +143,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetCs2Table_a(a, cs2, byref(c_int(len(a))))
 
         return self
-    
+
     def set_cs2_k_table(self, k, cs2):
         """
-        Set cs2(k) from numerical values (used as cublic spline). 
+        Set cs2(k) from numerical values (used as cublic spline).
 
         :param k: array of wavenumbers
         :param cs2: array of cs2(k)
@@ -158,10 +161,10 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.f_SetCs2Table_k(k, cs2, byref(c_int(len(k))))
 
         return self
-    
+
     def set_cs2_ktau_table(self, ktau, cs2):
         """
-        Set cs2(k) from numerical values (used as cublic spline). 
+        Set cs2(k) from numerical values (used as cublic spline).
 
         :param k: array of wavenumbers
         :param cs2: array of cs2(k)
@@ -182,7 +185,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             raise TypeError("Cannot save class with splines")
         return super().__getstate__()
 
-    
+
 def update_DF_model(pars, H0):
     pars.DarkEnergy.omch2_eff = pars.omch2_eff
     pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
@@ -194,43 +197,43 @@ def update_DF_model(pars, H0):
     w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
     pars.DarkEnergy.set_w_a_table(pars.DF_a,w_a)
     pars.H0 = H0
-                
-                
+
+
 @fortran_class
 class DarkEnergyFluid(DarkEnergyEqnOfState):
     """
     Class implementing the w, wa or splined w(a) parameterization using the constant sound-speed single fluid model
-    (as for single-field quintessense).
+    (as for single-field quintessence).
 
     """
 
-    _fortran_class_module_ = 'DarkEnergyFluid'
-    _fortran_class_name_ = 'TDarkEnergyFluid'
+    _fortran_class_module_ = "DarkEnergyFluid"
+    _fortran_class_name_ = "TDarkEnergyFluid"
 
-    def validate_params(self):
+    def validate_params(self) -> None:
         super().validate_params()
         if not self.use_tabulated_w:
             if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6) and self.is_df_model==False:
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
-    def set_w_a_table(self, a, w):
-        # check w array has elements that are all the same sign or zero
+    def set_w_a_table(self, a, w) -> "DarkEnergyEqnOfState":
+        # check w array has elements that do not cross -1
         if np.sign(1 + np.max(w)) - np.sign(1 + np.min(w)) == 2:
-            raise ValueError('fluid dark energy model does not support w crossing -1')
-        super().set_w_a_table(a, w)
+            raise CAMBError("fluid dark energy model does not support w crossing -1")
+        return super().set_w_a_table(a, w)
 
     def set_cs2_a_table(self, a, cs2):
         # check cs2 array has positive elements
         if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_a_table(a, cs2)
-        
+
     def set_cs2_k_table(self, k, cs2):
         # check cs2 array has positive elements
         if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_k_table(k, cs2)
-        
+
     def set_cs2_k_table(self, ktau, cs2):
         # check cs2 array has positive elements
         if np.any(cs2<0):
@@ -241,31 +244,37 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
 @fortran_class
 class DarkEnergyPPF(DarkEnergyEqnOfState):
     """
-    Class implementating the w, wa or splined w(a) parameterization in the PPF perturbation approximation
+    Class implementing the w, wa or splined w(a) parameterization in the PPF perturbation approximation
     (`arXiv:0808.3125 <https://arxiv.org/abs/0808.3125>`_)
     Use inherited methods to set parameters or interpolation table.
 
+    Note PPF is not a physical model and just designed to allow crossing -1 in an ad hoc smooth way. For models
+    with w>-1 but far from cosmological constant, it can give quite different answers to the fluid model with c_s^2=1.
+
     """
+
     # cannot declare c_Gamma_ppf directly here as have not defined all fields in DarkEnergyEqnOfState (TCubicSpline)
-    _fortran_class_module_ = 'DarkEnergyPPF'
-    _fortran_class_name_ = 'TDarkEnergyPPF'
+    _fortran_class_module_ = "DarkEnergyPPF"
+    _fortran_class_name_ = "TDarkEnergyPPF"
 
 
 @fortran_class
 class AxionEffectiveFluid(DarkEnergyModel):
     """
-    Example implementation of a specifc (early) dark energy fluid model
+    Example implementation of a specific (early) dark energy fluid model
     (`arXiv:1806.10608 <https://arxiv.org/abs/1806.10608>`_).
     Not well tested, but should serve to demonstrate how to make your own custom classes.
     """
+
     _fields_ = [
         ("w_n", c_double, "effective equation of state parameter"),
         ("fde_zc", c_double, "energy density fraction at z=zc"),
         ("zc", c_double, "decay transition redshift (not same as peak of energy density fraction)"),
-        ("theta_i", c_double, "initial condition field value")]
+        ("theta_i", c_double, "initial condition field value"),
+    ]
 
-    _fortran_class_name_ = 'TAxionEffectiveFluid'
-    _fortran_class_module_ = 'DarkEnergyFluid'
+    _fortran_class_name_ = "TAxionEffectiveFluid"
+    _fortran_class_module_ = "DarkEnergyFluid"
 
     def set_params(self, w_n, fde_zc, zc, theta_i=None, pars=None):
         self.w_n = w_n
@@ -286,6 +295,7 @@ class Quintessence(DarkEnergyModel):
     defining Vofphi and setting up initial conditions and interpolation tables (see TEarlyQuintessence as example).
 
     """
+
     _fields_ = [
         ("DebugLevel", c_int),
         ("astart", c_double),
@@ -301,9 +311,9 @@ class Quintessence(DarkEnergyModel):
         ("__max_a_log", c_double),
         ("__ddphi_a", AllocatableArrayDouble),
         ("__ddphidot_a", AllocatableArrayDouble),
-        ("__state", f_pointer)
+        ("__state", f_pointer),
     ]
-    _fortran_class_module_ = 'Quintessence'
+    _fortran_class_module_ = "Quintessence"
 
     def __getstate__(self):
         raise TypeError("Cannot save class with splines")
@@ -312,7 +322,7 @@ class Quintessence(DarkEnergyModel):
 @fortran_class
 class EarlyQuintessence(Quintessence):
     r"""
-    Example early quintessence (axion-like, as arXiv:1908.06995) with potential
+    Example early quintessence (axion-like, as `arXiv:1908.06995 <https://arxiv.org/abs/1908.06995>`_) with potential
 
      V(\phi) = m^2f^2 (1 - cos(\phi/f))^n + \Lambda_{cosmological constant}
 
@@ -321,20 +331,26 @@ class EarlyQuintessence(Quintessence):
     _fields_ = [
         ("n", c_double, "power index for potential"),
         ("f", c_double, r"f/Mpl (sqrt(8\piG)f); only used for initial search value when use_zc is True"),
-        ("m", c_double, "mass parameter in reduced Planck mass units; "
-                        "only used for initial search value when use_zc is True"),
+        (
+            "m",
+            c_double,
+            "mass parameter in reduced Planck mass units; only used for initial search value when use_zc is True",
+        ),
         ("theta_i", c_double, "phi/f initial field value"),
         ("frac_lambda0", c_double, "fraction of dark energy in cosmological constant today (approximated as 1)"),
-        ("use_zc", c_bool, "solve for f, m to get specific critical reshift zc and fde_zc"),
-        ("zc", c_double, "reshift of peak fractional early dark energy density"),
+        ("use_zc", c_bool, "solve for f, m to get specific critical redshift zc and fde_zc"),
+        ("zc", c_double, "redshift of peak fractional early dark energy density"),
         ("fde_zc", c_double, "fraction of early dark energy density to total at peak"),
         ("npoints", c_int, "number of points for background integration spacing"),
-        ("min_steps_per_osc", c_int, "minimumum number of steps per background oscillation scale"),
-        ("fde", AllocatableArrayDouble, "after initialized, the calculated background early dark energy "
-                                        "fractions at sampled_a"),
-        ("__ddfde", AllocatableArrayDouble)
+        ("min_steps_per_osc", c_int, "minimum number of steps per background oscillation scale"),
+        (
+            "fde",
+            AllocatableArrayDouble,
+            "after initialized, the calculated background early dark energy fractions at sampled_a",
+        ),
+        ("__ddfde", AllocatableArrayDouble),
     ]
-    _fortran_class_name_ = 'TEarlyQuintessence'
+    _fortran_class_name_ = "TEarlyQuintessence"
 
     def set_params(self, n, f=0.05, m=5e-54, theta_i=0.0, use_zc=True, zc=None, fde_zc=None):
         self.n = n
@@ -350,4 +366,4 @@ class EarlyQuintessence(Quintessence):
 
 
 # short names for models that support w/wa
-F2003Class._class_names.update({'fluid': DarkEnergyFluid, 'ppf': DarkEnergyPPF})
+F2003Class._class_names.update({"fluid": DarkEnergyFluid, "ppf": DarkEnergyPPF})

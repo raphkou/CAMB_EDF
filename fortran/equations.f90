@@ -35,6 +35,9 @@
     implicit none
     public
 
+    ! Equations and relation to synchronous gauge variables documented in the notes:
+    ! https://cosmologist.info/notes/CAMB.pdf
+
     !Description of this file. Change if you make modifications.
     character(LEN=*), parameter :: Eqns_name = 'cdm_gauge'
 
@@ -2160,7 +2163,7 @@
     !  Evaluate the time derivatives of the scalar perturbations
     use constants, only : barssc0, Compton_CT, line21_const
     use MassiveNu
-    use Recombination
+    use Recombination, only : CB1
     implicit none
     type(EvolutionVars) EV
     integer n,nu_i

@@ -24,13 +24,13 @@
     procedure :: PerturbationEvolve
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
-    procedure :: w_de
+    procedure :: w_de => TDarkEnergyModel_w_de
     procedure :: w_de_only
     procedure :: dw_da
     procedure :: cs2_de_a
     procedure :: cs2_de_k
     procedure :: cs2_de_ktau
-    procedure :: grho_de
+    procedure :: grho_de => TDarkEnergyModel_grho_de
     procedure :: grho_cdm
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
@@ -64,20 +64,23 @@
     procedure :: cs2_de_ktau => TDarkEnergyEqnOfState_cs2_de_ktau
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
+#ifdef __GFORTRAN__
+    final :: TDarkEnergyEqnOfState_Free ! safer for gcc mem-leak bug
+#endif
     end type TDarkEnergyEqnOfState
 
     public TDarkEnergyModel, TDarkEnergyEqnOfState
     contains
 
-    function w_de(this, a)
+    function TDarkEnergyModel_w_de(this, a)
     class(TDarkEnergyModel) :: this
-    real(dl) :: w_de, al
+    real(dl) :: TDarkEnergyModel_w_de, al
     real(dl), intent(IN) :: a
 
-    w_de = -1._dl
+    TDarkEnergyModel_w_de = -1._dl
 
-    end function w_de  ! equation of state of the PPF DE
-    
+    end function TDarkEnergyModel_w_de  ! equation of state of the PPF DE
+
     function w_de_only(this, a)
     class(TDarkEnergyModel) :: this
     real(dl) :: w_de_only, al
@@ -86,7 +89,7 @@
     w_de_only = -1._dl
 
     end function w_de_only
-    
+
     function dw_da(this, a, de_only)
     class(TDarkEnergyModel) :: this
     real(dl) :: dw_da
@@ -105,7 +108,7 @@
     cs2_de_a = 1._dl
 
     end function cs2_de_a
-    
+
     function cs2_de_k(this, k)
     class(TDarkEnergyModel) :: this
     real(dl) :: cs2_de_k
@@ -114,7 +117,7 @@
     cs2_de_k = 1._dl
 
     end function cs2_de_k
-    
+
     function cs2_de_ktau(this, ktau)
     class(TDarkEnergyModel) :: this
     real(dl) :: cs2_de_ktau
@@ -124,15 +127,15 @@
 
     end function cs2_de_ktau
 
-    function grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
+    function TDarkEnergyModel_grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
-    real(dl) :: grho_de, al, fint
+    real(dl) :: TDarkEnergyModel_grho_de, al, fint
     real(dl), intent(IN) :: a
 
-    grho_de =0._dl
+    TDarkEnergyModel_grho_de =0._dl
 
-    end function grho_de
-    
+    end function TDarkEnergyModel_grho_de
+
     function grho_cdm(this, a)
     class(TDarkEnergyModel) :: this
     real(dl) :: grho_cdm, al, fint
@@ -231,7 +234,7 @@
     !Get intinitial values for perturbations at a (or tau)
     !For standard adiabatic perturbations can usually just set to zero to good accuracy
     y = 0
-    
+
     end subroutine PerturbationInitial
 
     subroutine TDarkEnergyEqnOfState_SetwTable(this, a, w, n)
@@ -269,7 +272,7 @@
     call this%sound_speed_a%Init(log(a), cs2_a)
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_a
-    
+
     subroutine TDarkEnergyEqnOfState_SetCs2Table_k(this, k, cs2_k, n)
     class(TDarkEnergyEqnOfState) :: this
     integer, intent(in) :: n
@@ -280,7 +283,7 @@
     call this%sound_speed_k%Init(log(k), cs2_k)
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_k
-    
+
     subroutine TDarkEnergyEqnOfState_SetCs2Table_ktau(this, ktau, cs2_ktau, n)
     class(TDarkEnergyEqnOfState) :: this
     integer, intent(in) :: n
@@ -312,8 +315,8 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
-    
-    
+
+
     function TDarkEnergyEqnOfState_w_de_only(this, a)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_w_de_only, al
@@ -329,13 +332,13 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de_only  ! equation of state of the PPF DE
-    
+
     function TDarkEnergyEqnOfState_dw_da(this, a, de_only)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_dw_da, loga
     real(dl), intent(IN) :: a
     integer, intent(in) :: de_only !if 1 then DE only, otherwise DF
-    
+
     loga = dlog(a)
     if (de_only == 1) then
         if (loga > this%equation_of_state_DE_only%Xmin_interp .and. loga < this%equation_of_state_DE_only%Xmax_interp) then
@@ -371,7 +374,7 @@
     endif
 
     end function TDarkEnergyEqnOfState_cs2_de_a
-    
+
     function TDarkEnergyEqnOfState_cs2_de_k(this, k)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_cs2_de_k, kl
@@ -391,7 +394,7 @@
     endif
 
     end function TDarkEnergyEqnOfState_cs2_de_k
-    
+
     function TDarkEnergyEqnOfState_cs2_de_ktau(this, ktau)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_cs2_de_ktau, ktaul
@@ -471,10 +474,10 @@
     if(.not. this%use_tabulated_w)then
         this%w_lam = Ini%Read_Double('w', -1.d0)
         this%wa = Ini%Read_Double('wa', 0.d0)
-        ! trap dark energy becoming important at high redshift 
+        ! trap dark energy becoming important at high redshift
         ! (will still work if this test is removed in some cases)
         if (this%w_lam + this%wa > 0) &
-             error stop 'w + wa > 0, giving w>0 at high redshift'
+            error stop 'w + wa > 0, giving w>0 at high redshift'
     else
         call File%LoadTxt(Ini%Read_String('wafile'), table)
         call this%SetwTable(table(:,1),table(:,2), size(table(:,1)))
@@ -486,13 +489,13 @@
         call File%LoadTxt(Ini%Read_String('cs2file_a'), table)
         call this%SetCs2Table_a(table(:,1),table(:,2), size(table(:,1)))
     endif
-    
+
     this%use_tabulated_cs2_k = Ini%Read_Logical('use_tabulated_cs2_k', .false.)
     if(this%use_tabulated_cs2_k)then
         call File%LoadTxt(Ini%Read_String('cs2file_k'), table)
         call this%SetCs2Table_a(table(:,1),table(:,2), size(table(:,1)))
     endif
-    
+
     this%is_df_model = Ini%Read_Logical('is_df_model', .false.)
     this%omch2_eff = Ini%Read_Double('omch2_eff', 0.d0)
     this%Omega_DE_eff = Ini%Read_Double('Omega_DE_eff', 0.d0)
@@ -511,5 +514,14 @@
 
     end subroutine TDarkEnergyEqnOfState_Init
 
+#ifdef __GFORTRAN__
+    subroutine TDarkEnergyEqnOfState_Free(this)
+    type(TDarkEnergyEqnOfState), intent(inout) :: this
+
+    call this%equation_of_state%Clear()
+    call this%logdensity%Clear()
+
+    end subroutine TDarkEnergyEqnOfState_Free
+#endif
 
     end module DarkEnergyInterface
