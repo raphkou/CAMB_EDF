@@ -3079,7 +3079,7 @@
     logical :: transfer_interp_matterpower  = .true. !output regular grid in log k
     !set to false to output calculated values for later interpolation
 
-    integer :: transfer_power_var = Transfer_tot
+    integer :: transfer_power_var = Transfer_tot_de
     !What to use to calulcate the output matter power spectrum and sigma_8
     !Transfer_tot uses total matter perturbation
 

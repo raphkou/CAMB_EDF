@@ -75,7 +75,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             self.is_df_model = True
             self.omch2_eff = omch2_eff
             self.Omega_c_eff = omch2_eff/(H0/100)**2
-            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2
+            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation nor massive neutrinos. Is it a problem? Knowing that this is only used to compute the equation of state, and that the density of UDF at z=0, computed in results.f90 does take into account radiation and massive neutrinos.
             self.omde_tot = self.omch2_eff + self.Omega_DE_eff*(H0/100)**2
 
             self.a = np.logspace(-7,0,500)
@@ -84,11 +84,11 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             Omega_DM = self.Omega_c_eff/self.a**3
             w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
             self.set_w_a_table(self.a,w_a)
-
-            
             if pars is not None:
                 pars.DF_a = self.a
                 pars.DF_w = w_a
+                pars.DF_w0 = w
+                pars.DF_wa = wa
                 
         self.validate_params()
     
@@ -182,14 +182,14 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             raise TypeError("Cannot save class with splines")
         return super().__getstate__()
 
-
+    
 def update_DF_model(pars, H0):
     pars.DarkEnergy.omch2_eff = pars.omch2_eff
     pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
     pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2+pars.omnuh2)/(H0/100)**2
     pars.DarkEnergy.omde_tot = pars.DarkEnergy.omch2_eff + pars.DarkEnergy.Omega_DE_eff*(H0/100)**2
-    w_de = pars.DarkEnergy.w+pars.DarkEnergy.wa*(1-pars.DF_a)
-    Omega_DE = pars.DarkEnergy.Omega_DE_eff*np.exp(-3*pars.DarkEnergy.wa*(1-a))*a**(-3*(1+pars.DarkEnergy.w+pars.DarkEnergy.wa))
+    w_de = pars.DF_w0+pars.DF_wa*(1-pars.DF_a)
+    Omega_DE = pars.DarkEnergy.Omega_DE_eff*np.exp(-3*pars.DF_wa*(1-pars.DF_a))*pars.DF_a**(-3*(1+pars.DF_w0+pars.DF_wa))
     Omega_DM = pars.DarkEnergy.Omega_c_eff/pars.DF_a**3
     w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
     pars.DarkEnergy.set_w_a_table(pars.DF_a,w_a)

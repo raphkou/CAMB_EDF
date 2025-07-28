@@ -1343,22 +1343,22 @@
     subroutine output_window_sources(EV, sources, y, yprime, &
         tau, a, adotoa, grho, gpres, &
         k, etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe,  &
+        dgrho, clxg,clxb,clxc,clxv,clxnu, Delta_TM, Delta_xe,  &
         dgq, qg,  vb, qgdot, vbdot, &
         dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_tot)
     !Line of sight sources for number counts, lensing and 21cm redshift windows
     type(EvolutionVars) EV
     real(dl) y(EV%nvar), yprime(EV%nvar)
     real(dL), intent(out) :: sources(:)
     real(dL), intent(in) :: tau, a, adotoa, grho, gpres, &
         k,etak, z, etakdot, phi, phidot, sigma, sigmadot, &
-        dgrho, clxg,clxb,clxc,clxnu,  &
+        dgrho, clxg,clxb,clxc,clxv,clxnu,  &
         dgq, qg, vb, qgdot, vbdot, &
         dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_tot
     real(dl), intent(in) :: Delta_TM, Delta_xe
     real(dl) s(0:10), t(0:10)
     real(dl) counts_radial_source, counts_velocity_source, counts_density_source, counts_ISW_source, &
@@ -1398,8 +1398,9 @@
 
                 !Main density source
                 if (CP%SourceTerms%counts_density) then
-                    counts_density_source= W%wing(j)*(clxc*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
-                    !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
+                    counts_density_source= W%wing(j)*(dgrho/grho*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
+                        !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
+                        !In the UDF model, is the second term correct? Should it be 3*adotoa*(1+w_tot) ?
                 else
                     counts_density_source= 0
                 endif
@@ -2176,7 +2177,7 @@
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,clxv
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,clxv,vv
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2220,6 +2221,7 @@
     vb=ay(ix_vb)
     
     clxv = ay(EV%w_ix)
+    vv = ay(EV%w_ix+1) ! In UDF, grhoc = 0, is it a problem if vv (velocity of UDF) is nonzero (in standard camb we work in the v_cdm=0 frame)? In which frame do we work now?
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
@@ -2738,12 +2740,12 @@
             EV%OutputTransfer(Transfer_nu) = clxnu
             EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
             EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
-            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho_matter
+            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
+            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb+vv
             if (State%CP%do21cm) then
                 Tspin = State%CP%Recomb%T_s(a)
                 xe = State%CP%Recomb%x_e(a)
@@ -2814,11 +2816,11 @@
                 call output_window_sources(EV, EV%OutputSources, ay, ayprime, &
                     tau, a, adotoa, grho, gpres, &
                     k, etak, z, ayprime(ix_etak), phi, phidot, sigma, sigmadot, &
-                    dgrho, clxg,clxb,clxc,clxnu, Delta_TM, Delta_xe, &
+                    dgrho, clxg,clxb,clxc,clxv,clxnu, Delta_TM, Delta_xe, &
                     dgq, qg, vb, qgdot, vbdot, &
                     dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
+                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_dark_energy_t)
             end if
             if (associated(EV%CustomSources)) then
                 select type(DE=>State%CP%DarkEnergy)
