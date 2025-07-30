@@ -18,8 +18,6 @@ class DarkEnergyModel(F2003Class):
         ("omde_tot", c_double)
     ]
 
-    _fields_ = [("__is_cosmological_constant", c_bool), ("__num_perturb_equations", c_int)]
-
     def validate_params(self) -> None:
         pass
 
