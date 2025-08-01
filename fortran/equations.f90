@@ -2220,7 +2220,11 @@
     vb=ay(ix_vb)
     
     clxv = ay(EV%w_ix)
-    vv = ay(EV%w_ix+1) ! In UDF, grhoc = 0, is it a problem if vv (velocity of UDF) is nonzero (in standard camb we work in the v_cdm=0 frame)? In which frame do we work now?
+    if (State%CP%DarkEnergy%num_perturb_equations > 1) then
+        vv = ay(EV%w_ix+1) ! In UDF, grhoc = 0, is it a problem if vv (velocity of UDF) is nonzero (in standard camb we work in the v_cdm=0 frame)? In which frame do we work now?
+    else
+        vv = 0
+    end if
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
