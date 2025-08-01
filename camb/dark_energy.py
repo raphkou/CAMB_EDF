@@ -73,7 +73,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             self.is_df_model = True
             self.omch2_eff = omch2_eff
             self.Omega_c_eff = omch2_eff/(H0/100)**2
-            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation nor massive neutrinos. Is it a problem? Knowing that this is only used to compute the equation of state, and that the density of UDF at z=0, computed in results.f90 does take into account radiation and massive neutrinos.
+            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation (photons and massless neutrinos), but that would make tiny difference.
             self.omde_tot = self.omch2_eff + self.Omega_DE_eff*(H0/100)**2
 
             self.a = np.logspace(-7,0,500)
@@ -87,9 +87,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
                 pars.DF_w = w_a
                 pars.DF_w0 = w
                 pars.DF_wa = wa
-
         self.validate_params()
-
 
     def validate_params(self):
         if not self.use_tabulated_w and self.wa + self.w > 0:
@@ -114,7 +112,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         w = np.ascontiguousarray(w, dtype=np.float64)
 
         self.f_SetWTable(a, w, byref(c_int(len(a))))
-
         return self
 
     def set_cs2_a_table(self, a, cs2):
@@ -190,7 +187,7 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
     def validate_params(self) -> None:
         super().validate_params()
         if not self.use_tabulated_w:
-            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < - 1e-6) and self.is_df_model==False:
+            if self.wa and (self.w < -1 - 1e-6 or 1 + self.w + self.wa < -1e-6) and self.is_df_model==False:
                 raise CAMBError('fluid dark energy model does not support w crossing -1')
 
     def set_w_a_table(self, a, w) -> "DarkEnergyEqnOfState":

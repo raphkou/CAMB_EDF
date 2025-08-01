@@ -1402,7 +1402,7 @@
                 !Main density source
                 if (CP%SourceTerms%counts_density) then
                     counts_density_source= W%wing(j)*(dgrho/grho*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
-                        !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
+                    !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
                 else
                     counts_density_source= 0
                 endif
@@ -2198,7 +2198,7 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
-     
+
     k=EV%k_buf
     k2=EV%k2_buf
 
@@ -2237,7 +2237,6 @@
 
     !total perturbations: matter terms first, then add massive nu, de and radiation
     !  8*pi*a*a*SUM[rho_i*clx_i]
-
     dgrho_matter=grhob_t*clxb+grhoc_t*clxc
     if (State%CP%DarkEnergy%is_df_model) then
         dgrho_matter = dgrho_matter+grhov_t*clxv

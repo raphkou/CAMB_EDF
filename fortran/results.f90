@@ -479,6 +479,7 @@
         else
             this%z_eq = (this%grhob+this%grhov)/&
                 (this%grhog+this%grhornomass+sum(this%grhormass(1:this%CP%Nu_mass_eigenstates))) -1
+            !This is equation is wrong because "matter" doesn't evolve like a^-3 anymore, if we define matter as the UDF. But I think this is not really used anywhere (I just see it in recfast.f90, line 963. Does it matter?
         endif
         
 
