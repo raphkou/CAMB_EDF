@@ -174,7 +174,7 @@
         !     taurst,taurend - time at start/end of recombination
         !     dtaurec - dtau during recombination
         !     adotrad - a(tau) in radiation era
-        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok,grhoc_eff
+        real(dl) grhocrit,grhog,grhor,grhob,grhoc,grhov,grhornomass,grhok
         real(dl) taurst,dtaurec,taurend,tau_maxvis,adotrad
 
         real(dl) Omega_de
@@ -1835,7 +1835,6 @@
 
     this%matter_verydom_tau = 0
     a_verydom = CP%Accuracy%AccuracyBoost*5*(State%grhog+State%grhornomass)/(State%grhoc+State%grhob)
-
     if (CP%Reion%Reionization) then
         call CP%Reion%get_timesteps(State%reion_n_steps, reion_z_start, reion_z_complete)
         State%reion_tau_start = max(0.05_dl, State%TimeOfZ(reion_z_start, 1d-3))

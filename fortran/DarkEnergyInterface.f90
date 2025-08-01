@@ -25,13 +25,9 @@
     procedure :: PrintFeedback
     ! do not have to implement w_de or grho_de if BackgroundDensityAndPressure is inherited directly
     procedure :: w_de => TDarkEnergyModel_w_de
-    procedure :: w_de_only
-    procedure :: dw_da
     procedure :: cs2_de_a
     procedure :: cs2_de_k
-    procedure :: cs2_de_ktau
     procedure :: grho_de => TDarkEnergyModel_grho_de
-    procedure :: grho_cdm
     procedure :: Effective_w_wa !Used as approximate values for non-linear corrections
     end type TDarkEnergyModel
 
@@ -43,10 +39,9 @@
         logical :: use_tabulated_w = .false.  !Use interpolated table; note this is quite slow.
         logical :: use_tabulated_cs2_a = .false.  !Use interpolated table
         logical :: use_tabulated_cs2_k = .false.  !Use interpolated table
-        logical :: use_tabulated_cs2_ktau = .false.  !Use interpolated table
         logical :: no_perturbations = .false. !Don't change this, no perturbations is unphysical
         !Interpolations if use_tabulated_w=.true.
-        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, sound_speed_a, sound_speed_k, sound_speed_ktau
+        Type(TCubicSpline) :: equation_of_state, logdensity, equation_of_state_DE_only, sound_speed_a, sound_speed_k
         Type(TCubicSpline) :: rho_DE, rho_CDM, rho_DF
     contains
     procedure :: ReadParams => TDarkEnergyEqnOfState_ReadParams
@@ -54,14 +49,10 @@
     procedure :: SetwTable => TDarkEnergyEqnOfState_SetwTable
     procedure :: SetCs2Table_a => TDarkEnergyEqnOfState_SetCs2Table_a
     procedure :: SetCs2Table_k => TDarkEnergyEqnOfState_SetCs2Table_k
-    procedure :: SetCs2Table_ktau => TDarkEnergyEqnOfState_SetCs2Table_ktau
     procedure :: PrintFeedback => TDarkEnergyEqnOfState_PrintFeedback
     procedure :: w_de => TDarkEnergyEqnOfState_w_de
-    procedure :: w_de_only => TDarkEnergyEqnOfState_w_de_only
-    procedure :: dw_da => TDarkEnergyEqnOfState_dw_da
     procedure :: cs2_de_a => TDarkEnergyEqnOfState_cs2_de_a
     procedure :: cs2_de_k => TDarkEnergyEqnOfState_cs2_de_k
-    procedure :: cs2_de_ktau => TDarkEnergyEqnOfState_cs2_de_ktau
     procedure :: grho_de => TDarkEnergyEqnOfState_grho_de
     procedure :: Effective_w_wa => TDarkEnergyEqnOfState_Effective_w_wa
 #ifdef __GFORTRAN__
@@ -81,25 +72,6 @@
 
     end function TDarkEnergyModel_w_de  ! equation of state of the PPF DE
 
-    function w_de_only(this, a)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: w_de_only, al
-    real(dl), intent(IN) :: a
-
-    w_de_only = -1._dl
-
-    end function w_de_only
-
-    function dw_da(this, a, de_only)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: dw_da
-    real(dl), intent(IN) :: a
-    integer, intent(in) :: de_only
-
-    dw_da = 0._dl
-
-    end function dw_da
-
     function cs2_de_a(this, a)
     class(TDarkEnergyModel) :: this
     real(dl) :: cs2_de_a
@@ -118,15 +90,6 @@
 
     end function cs2_de_k
 
-    function cs2_de_ktau(this, ktau)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: cs2_de_ktau
-    real(dl), intent(IN) :: ktau
-
-    cs2_de_ktau = 1._dl
-
-    end function cs2_de_ktau
-
     function TDarkEnergyModel_grho_de(this, a)  !relative density (8 pi G a^4 rho_de /grhov)
     class(TDarkEnergyModel) :: this
     real(dl) :: TDarkEnergyModel_grho_de, al, fint
@@ -135,15 +98,6 @@
     TDarkEnergyModel_grho_de =0._dl
 
     end function TDarkEnergyModel_grho_de
-
-    function grho_cdm(this, a)
-    class(TDarkEnergyModel) :: this
-    real(dl) :: grho_cdm, al, fint
-    real(dl), intent(IN) :: a
-
-    grho_cdm =0._dl
-
-    end function grho_cdm
 
     subroutine PrintFeedback(this, FeedbackLevel)
     class(TDarkEnergyModel) :: this
@@ -284,18 +238,6 @@
 
     end subroutine TDarkEnergyEqnOfState_SetCs2Table_k
 
-    subroutine TDarkEnergyEqnOfState_SetCs2Table_ktau(this, ktau, cs2_ktau, n)
-    class(TDarkEnergyEqnOfState) :: this
-    integer, intent(in) :: n
-    real(dl), intent(in) :: ktau(n), cs2_ktau(n)
-    real(dl), allocatable :: integral(:)
-
-    this%use_tabulated_cs2_ktau = .true.
-    call this%sound_speed_ktau%Init(log(ktau), cs2_ktau)
-
-    end subroutine TDarkEnergyEqnOfState_SetCs2Table_ktau
-
-
     function TDarkEnergyEqnOfState_w_de(this, a)
     class(TDarkEnergyEqnOfState) :: this
     real(dl) :: TDarkEnergyEqnOfState_w_de, al
@@ -315,45 +257,6 @@
     endif
 
     end function TDarkEnergyEqnOfState_w_de  ! equation of state of the PPF DE
-
-
-    function TDarkEnergyEqnOfState_w_de_only(this, a)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_w_de_only, al
-    real(dl), intent(IN) :: a
-
-    al=dlog(a)
-    if(al <= this%equation_of_state_DE_only%Xmin_interp) then
-        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(1)
-    elseif(al >= this%equation_of_state_DE_only%Xmax_interp) then
-        TDarkEnergyEqnOfState_w_de_only= this%equation_of_state_DE_only%F(this%equation_of_state_DE_only%n)
-    else
-        TDarkEnergyEqnOfState_w_de_only = this%equation_of_state_DE_only%Value(al)
-    endif
-
-    end function TDarkEnergyEqnOfState_w_de_only  ! equation of state of the PPF DE
-
-    function TDarkEnergyEqnOfState_dw_da(this, a, de_only)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_dw_da, loga
-    real(dl), intent(IN) :: a
-    integer, intent(in) :: de_only !if 1 then DE only, otherwise DF
-
-    loga = dlog(a)
-    if (de_only == 1) then
-        if (loga > this%equation_of_state_DE_only%Xmin_interp .and. loga < this%equation_of_state_DE_only%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state_DE_only%Derivative(loga)/a
-        else
-            TDarkEnergyEqnOfState_dw_da = 0._dl
-        end if
-    else
-        if (loga > this%equation_of_state%Xmin_interp .and. loga < this%equation_of_state%Xmax_interp) then
-            TDarkEnergyEqnOfState_dw_da = this%equation_of_state%Derivative(loga)/a
-        else
-            TDarkEnergyEqnOfState_dw_da = 0._dl
-        end if
-    end if
-    end function TDarkEnergyEqnOfState_dw_da
 
     function TDarkEnergyEqnOfState_cs2_de_a(this, a)
     class(TDarkEnergyEqnOfState) :: this
@@ -394,27 +297,6 @@
     endif
 
     end function TDarkEnergyEqnOfState_cs2_de_k
-
-    function TDarkEnergyEqnOfState_cs2_de_ktau(this, ktau)
-    class(TDarkEnergyEqnOfState) :: this
-    real(dl) :: TDarkEnergyEqnOfState_cs2_de_ktau, ktaul
-    real(dl), intent(IN) :: ktau
-
-    if(.not. this%use_tabulated_cs2_ktau) then
-        TDarkEnergyEqnOfState_cs2_de_ktau= 1._dl
-    else
-        ktaul=dlog(ktau)
-        if(ktaul <= this%sound_speed_ktau%Xmin_interp) then
-            TDarkEnergyEqnOfState_cs2_de_ktau= this%sound_speed_ktau%F(1)
-        elseif(ktaul >= this%sound_speed_ktau%Xmax_interp) then
-            TDarkEnergyEqnOfState_cs2_de_ktau= this%sound_speed_ktau%F(this%sound_speed_ktau%n)
-        else
-            TDarkEnergyEqnOfState_cs2_de_ktau = this%sound_speed_ktau%Value(ktaul)
-        endif
-    endif
-
-    end function TDarkEnergyEqnOfState_cs2_de_ktau
-
 
     subroutine TDarkEnergyEqnOfState_Effective_w_wa(this, w, wa)
     class(TDarkEnergyEqnOfState), intent(inout) :: this

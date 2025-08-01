@@ -1350,7 +1350,7 @@
         dgq, qg,  vb, qgdot, vbdot, &
         dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_tot)
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
     !Line of sight sources for number counts, lensing and 21cm redshift windows
     type(EvolutionVars) EV
     real(dl) y(EV%nvar), yprime(EV%nvar)
@@ -1361,7 +1361,7 @@
         dgq, qg, vb, qgdot, vbdot, &
         dgpi, pig, pigdot, diff_rhopi, &
         polter, polterdot, polterddot, octg, octgdot, E(2:3), Edot(2:3), &
-        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_tot
+        opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau
     real(dl), intent(in) :: Delta_TM, Delta_xe
     real(dl) s(0:10), t(0:10)
     real(dl) counts_radial_source, counts_velocity_source, counts_density_source, counts_ISW_source, &
@@ -1403,7 +1403,6 @@
                 if (CP%SourceTerms%counts_density) then
                     counts_density_source= W%wing(j)*(dgrho/grho*W%Window%GetBias(k,a) + (W%comoving_density_ev(j) - 3*adotoa)*sigma/k)
                         !Newtonian gauge count density; bias assumed to be on synchronous gauge CDM density
-                        !In the UDF model, is the second term correct? Should it be 3*adotoa*(1+w_tot) ?
                 else
                     counts_density_source= 0
                 endif
@@ -2176,7 +2175,7 @@
     real(dl) q,aq,v
     real(dl) G11_t,G30_t, wnu_arr(max_nu)
 
-    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter,grhoc_eff_t
+    real(dl) dgq,grhob_t,grhor_t,grhoc_t,grhog_t,grhov_t,grhonu_t,sigma,polter
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
@@ -2184,7 +2183,7 @@
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
-    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu, grho_matter_eff, dgrho_matter_eff
+    real(dl) dgpi,dgrho_matter,grho_matter, clxnu, gpres_nu
     !non-flat vars
     real(dl) cothxor !1/tau in flat case
     real(dl) xe,Trad, Delta_TM, Tmat, Delta_TCMB
@@ -2199,9 +2198,6 @@
     real(dl) ddopacity, visibility, dvisibility, ddvisibility, exptau, lenswindow
     real(dl) ISW, quadrupole_source, doppler, monopole_source, tau0, ang_dist
     real(dl) dgrho_de, dgq_de, cs2_de
-    !Variables for DF model
-    real(dl) dgrho_DE_only, grho_DE_only_t, cs2_eff, eps, w_DE, dw_DF_da, drho_DF_da, dw_DE_da, drho_exo_da
-    real(dl) cad2_DE, cad2_DF, v_DF_t, v_DE_t, cs2_DF_DM, w_exo_p, w_exo_m, dw_exo, w_DF
      
     k=EV%k_buf
     k2=EV%k2_buf
@@ -2229,7 +2225,6 @@
 
     grhob_t=State%grhob/a
     grhoc_t=State%grhoc/a
-
     grhor_t=State%grhornomass/a2
     grhog_t=State%grhog/a2
 
@@ -2340,7 +2335,6 @@
         sigma=(z+1.5_dl*dgq/k2)/EV%Kf(1)
         ayprime(ix_etak)=0.5_dl*dgq + State%curv*z
     end if
-
 
     if (.not. EV%is_cosmological_constant) &
         cs2_de = State%CP%DarkEnergy%cs2_de_a(a)
@@ -2741,8 +2735,8 @@
             EV%OutputTransfer(Transfer_g) = clxg
             EV%OutputTransfer(Transfer_r) = clxr
             EV%OutputTransfer(Transfer_nu) = clxnu
-            EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
             EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
+            EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
             EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
@@ -2823,7 +2817,7 @@
                     dgq, qg, vb, qgdot, vbdot, &
                     dgpi, pig, pigdot, diff_rhopi, &
                     polter, polterdot, polterddot, octg, octgdot, E, Edot, &
-                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau, w_dark_energy_t)
+                    opacity, dopacity, ddopacity, visibility, dvisibility, ddvisibility, exptau)
             end if
             if (associated(EV%CustomSources)) then
                 select type(DE=>State%CP%DarkEnergy)

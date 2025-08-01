@@ -44,7 +44,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ("use_tabulated_w", c_bool, "using an interpolated tabulated w(a) rather than w, wa above"),
         ("use_tabulated_cs2_a", c_bool, "using an interpolated tabulated cs2(a) rather than cs2 above"),
         ("use_tabulated_cs2_k", c_bool, "using an interpolated tabulated cs2(k) rather than cs2 above"),
-        ("use_tabulated_cs2_ktau", c_bool, "using an interpolated tabulated cs2(k*tau) rather than cs2 above"),
         ("__no_perturbations", c_bool, "turn off perturbations (unphysical, so hidden in Python)")
     ]
 
@@ -52,11 +51,8 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         ('SetWTable', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_a', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('SetCs2Table_k', [numpy_1d, numpy_1d, POINTER(c_int)]),
-        ('SetCs2Table_ktau', [numpy_1d, numpy_1d, POINTER(c_int)]),
         ('grho_de', [POINTER(c_double)], c_double),
-        ('w_de', [POINTER(c_double)], c_double),
-        ('w_de_only', [POINTER(c_double)], c_double),
-        ('dw_da', [POINTER(c_double), POINTER(c_int)], c_double)
+        ('w_de', [POINTER(c_double)], c_double)
     ]
 
     def set_params(self, w=-1.0, wa=0, cs2=1.0,
@@ -161,24 +157,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
         return self
 
-    def set_cs2_ktau_table(self, ktau, cs2):
-        """
-        Set cs2(k) from numerical values (used as cublic spline).
-
-        :param k: array of wavenumbers
-        :param cs2: array of cs2(k)
-        :return: self
-        """
-        if len(ktau) != len(cs2):
-            raise ValueError('Dark energy cs2(k*tau) table non-equal sized arrays')
-
-        ktau = np.ascontiguousarray(ktau, dtype=np.float64)
-        cs2 = np.ascontiguousarray(cs2, dtype=np.float64)
-
-        self.f_SetCs2Table_ktau(ktau, cs2, byref(c_int(len(ktau))))
-
-        return self
-
     def __getstate__(self):
         if self.use_tabulated_w:
             raise TypeError("Cannot save class with splines")
@@ -232,12 +210,6 @@ class DarkEnergyFluid(DarkEnergyEqnOfState):
         if np.any(cs2<0):
             raise ValueError('fluid dark energy model does not support cs2<0')
         super().set_cs2_k_table(k, cs2)
-
-    def set_cs2_k_table(self, ktau, cs2):
-        # check cs2 array has positive elements
-        if np.any(cs2<0):
-            raise ValueError('fluid dark energy model does not support cs2<0')
-        super().set_cs2_ktau_table(ktau, cs2)
 
 
 @fortran_class
