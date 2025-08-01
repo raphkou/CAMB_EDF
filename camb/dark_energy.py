@@ -73,6 +73,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.cs2 = cs2
 
         if (is_df_model == True):
+            self.cs2=0
             self.is_df_model = True
             self.omch2_eff = omch2_eff
             self.Omega_c_eff = omch2_eff/(H0/100)**2
