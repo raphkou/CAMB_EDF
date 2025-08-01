@@ -145,7 +145,7 @@
         ayprime(w_ix) = ayprime(w_ix) + Hv3_over_k*this%wa*adotoa*a
     end if
     !velocity
-    if (abs(w+1) > 1e-6 .and. .not. this%is_df_model) then
+    if (abs(w+1) > 1e-6) then
         ayprime(w_ix + 1) = -adotoa * (1 - 3 * cs2_lam) * y(w_ix + 1) + &
             k * cs2_lam * y(w_ix) / (1 + w)
     else
