@@ -2740,10 +2740,14 @@
             EV%OutputTransfer(Transfer_nu) = clxnu
             EV%OutputTransfer(Transfer_tot) =  dgrho_matter/grho_matter !includes neutrinos
             EV%OutputTransfer(Transfer_nonu) = (grhob_t*clxb+grhoc_t*clxc)/(grhob_t + grhoc_t)
-            EV%OutputTransfer(Transfer_tot_de) =  dgrho/grho
+            if (CP%DarkEnergy%is_df_model) then
+                EV%OutputTransfer(Transfer_tot_de) =  dgrho_matter/grho_matter
+            else
+                EV%OutputTransfer(Transfer_tot_de) =  (dgrho_matter+grhov_t*clxv)/(grho_matter+grhov_t)
+            end if
             !Transfer_Weyl is k^2Phi, where Phi is the Weyl potential
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
-            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*(sigma+vv)/adotoa
+            EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
             EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb+vv
             if (State%CP%do21cm) then
