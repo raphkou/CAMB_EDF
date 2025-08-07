@@ -2179,7 +2179,7 @@
     real(dl) w_dark_energy_t !equation of state of dark energy
     real(dl) gpres_noDE !Pressure with matter and radiation, no dark energy
     real(dl) qgdot,qrdot,pigdot,pirdot,vbdot,dgrho,adotoa
-    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,clxv,vv
+    real(dl) a,a2,z,clxc,clxb,vb,clxg,qg,pig,clxr,qr,pir,clxv
     real(dl) E2, dopacity
     integer l,i,ind, ind2, off_ix, ix
     real(dl) dgs,sigmadot,dz
@@ -2220,11 +2220,6 @@
     vb=ay(ix_vb)
     
     clxv = ay(EV%w_ix)
-    if (State%CP%DarkEnergy%num_perturb_equations > 1) then
-        vv = ay(EV%w_ix+1) ! In UDF, grhoc = 0, is it a problem if vv (velocity of UDF) is nonzero (in standard camb we work in the v_cdm=0 frame)? In which frame do we work now?
-    else
-        vv = 0
-    end if
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
@@ -2749,7 +2744,7 @@
             EV%OutputTransfer(Transfer_Weyl) = k2*phi
             EV%OutputTransfer(Transfer_Newt_vel_cdm)=  -k*sigma/adotoa
             EV%OutputTransfer(Transfer_Newt_vel_baryon) = -k*(vb + sigma)/adotoa
-            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb+vv
+            EV%OutputTransfer(Transfer_vel_baryon_cdm) = vb
             if (State%CP%do21cm) then
                 Tspin = State%CP%Recomb%T_s(a)
                 xe = State%CP%Recomb%x_e(a)

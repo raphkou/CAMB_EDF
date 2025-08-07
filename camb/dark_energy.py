@@ -12,9 +12,6 @@ class DarkEnergyModel(F2003Class):
         ("__is_cosmological_constant", c_bool),
         ("__num_perturb_equations", c_int),
         ("is_df_model", c_bool, "using the Dark Fluid model"),
-        ("omch2_eff", c_double),
-        ("Omega_DE_eff", c_double),
-        ("Omega_c_eff", c_double),
         ("omde_tot", c_double)
     ]
 
@@ -71,15 +68,14 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         if (is_df_model == True):
             self.cs2=0
             self.is_df_model = True
-            self.omch2_eff = omch2_eff
-            self.Omega_c_eff = omch2_eff/(H0/100)**2
-            self.Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation (photons and massless neutrinos), but that would make tiny difference.
-            self.omde_tot = self.omch2_eff + self.Omega_DE_eff*(H0/100)**2
+            Omega_c_eff = omch2_eff/(H0/100)**2
+            Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation (photons and massless neutrinos), but that would make tiny difference.
+            self.omde_tot = omch2_eff + Omega_DE_eff*(H0/100)**2
 
             self.a = np.logspace(-7,0,500)
             w_de = w+wa*(1-self.a)
-            Omega_DE = self.Omega_DE_eff*np.exp(-3*wa*(1-self.a))*self.a**(-3*(1+w+wa))
-            Omega_DM = self.Omega_c_eff/self.a**3
+            Omega_DE = Omega_DE_eff*np.exp(-3*wa*(1-self.a))*self.a**(-3*(1+w+wa))
+            Omega_DM = Omega_c_eff/self.a**3
             w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
             self.set_w_a_table(self.a,w_a)
             if pars is not None:
@@ -161,13 +157,12 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 
 
 def update_DF_model(pars, H0):
-    pars.DarkEnergy.omch2_eff = pars.omch2_eff
-    pars.DarkEnergy.Omega_c_eff = pars.omch2_eff/(H0/100)**2
-    pars.DarkEnergy.Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2+pars.omnuh2)/(H0/100)**2
-    pars.DarkEnergy.omde_tot = pars.DarkEnergy.omch2_eff + pars.DarkEnergy.Omega_DE_eff*(H0/100)**2
+    Omega_c_eff = pars.omch2_eff/(H0/100)**2
+    Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2+pars.omnuh2)/(H0/100)**2
+    pars.DarkEnergy.omde_tot = pars.omch2_eff + Omega_DE_eff*(H0/100)**2
     w_de = pars.DF_w0+pars.DF_wa*(1-pars.DF_a)
-    Omega_DE = pars.DarkEnergy.Omega_DE_eff*np.exp(-3*pars.DF_wa*(1-pars.DF_a))*pars.DF_a**(-3*(1+pars.DF_w0+pars.DF_wa))
-    Omega_DM = pars.DarkEnergy.Omega_c_eff/pars.DF_a**3
+    Omega_DE = Omega_DE_eff*np.exp(-3*pars.DF_wa*(1-pars.DF_a))*pars.DF_a**(-3*(1+pars.DF_w0+pars.DF_wa))
+    Omega_DM = Omega_c_eff/pars.DF_a**3
     w_a = Omega_DE*w_de/(Omega_DE+Omega_DM)
     pars.DarkEnergy.set_w_a_table(pars.DF_a,w_a)
     pars.H0 = H0

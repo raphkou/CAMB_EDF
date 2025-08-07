@@ -128,9 +128,6 @@
 
     this%log_astart = log(this%astart)
     this%is_df_model = .false.
-    this%omch2_eff = 0.d0
-    this%Omega_DE_eff = 0.d0
-    this%Omega_c_eff = 0.d0
     this%omde_tot = 0.d0
 
     end subroutine  TQuintessence_Init

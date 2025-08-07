@@ -11,9 +11,6 @@
         integer :: num_perturb_equations = 0
         !Whether we are working with the Dark Fluid model (ie dark matter and dark energy are treated ad a single fluid)
         logical :: is_df_model = .false.
-        real(dl) :: omch2_eff = 0.d0
-        real(dl) :: Omega_DE_eff = 0.d0
-        real(dl) :: Omega_c_eff = 0.d0
         real(dl) :: omde_tot = 0.d0
     contains
     procedure :: Init
@@ -379,9 +376,6 @@
     endif
 
     this%is_df_model = Ini%Read_Logical('is_df_model', .false.)
-    this%omch2_eff = Ini%Read_Double('omch2_eff', 0.d0)
-    this%Omega_DE_eff = Ini%Read_Double('Omega_DE_eff', 0.d0)
-    this%Omega_c_eff = Ini%Read_Double('Omega_c_eff', 0.d0)
 
     end subroutine TDarkEnergyEqnOfState_ReadParams
 
