@@ -1828,7 +1828,7 @@
     grhonu=rhomass+State%grhornomass
     
     if (CP%DarkEnergy%is_df_model) then
-        om = (State%grhob+State%grhov)/sqrt(3*(State%grhog+grhonu))
+        om = (State%grhob+State%grhov*CP%DarkEnergy%grho_de(1e-7_dl)/1e-7_dl)/sqrt(3*(State%grhog+grhonu))
     else
         om = (State%grhob+State%grhoc)/sqrt(3*(State%grhog+grhonu))
     end if
@@ -1838,7 +1838,7 @@
 
     Rg = 1-Rv
     if (CP%DarkEnergy%is_df_model) then
-        Rc=CP%DarkEnergy%omde_tot/(CP%DarkEnergy%omde_tot+CP%ombh2)
+        Rc=State%grhov*CP%DarkEnergy%grho_de(1e-7_dl)/(State%grhov*CP%DarkEnergy%grho_de(1e-7_dl)+State%grhob*1e-7_dl)
     else
         Rc=CP%omch2/(CP%omch2+CP%ombh2)
     end if
