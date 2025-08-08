@@ -689,7 +689,11 @@ class CAMBparams(F2003Class):
         self.YHe = YHe
         self.TCMB = TCMB
         self.ombh2 = ombh2
-        self.omch2 = omch2
+        if (is_df_model):
+            self.omch2 = 0
+            omch2 = 0
+        else:
+            self.omch2 = omch2
         self.Alens = Alens
 
         neutrino_mass_fac = constants.neutrino_mass_fac * (constants.COBE_CMBTemp / TCMB) ** 3
