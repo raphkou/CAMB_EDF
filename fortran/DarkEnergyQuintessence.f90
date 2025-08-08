@@ -128,7 +128,6 @@
 
     this%log_astart = log(this%astart)
     this%is_df_model = .false.
-    this%omde_tot = 0.d0
 
     end subroutine  TQuintessence_Init
 

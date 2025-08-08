@@ -936,8 +936,8 @@
     ombh2 = this%CP%ombh2
     if (.not. this%CP%DarkEnergy%is_df_model) then
         omdmh2 = (this%CP%omch2+this%CP%omnuh2)
-    else
-        omdmh2 = (this%CP%DarkEnergy%omde_tot+this%CP%omnuh2)
+    else ! Better not to use CosmomcTheta in the UDF model. This is probably wrong.
+        omdmh2 = (this%grhov/this%grhocrit*(this%CP%H0/100)**2+this%CP%omnuh2)
     endif
 
     !!From Hu & Sugiyama

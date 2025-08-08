@@ -11,7 +11,6 @@
         integer :: num_perturb_equations = 0
         !Whether we are working with the Dark Fluid model (ie dark matter and dark energy are treated ad a single fluid)
         logical :: is_df_model = .false.
-        real(dl) :: omde_tot = 0.d0
     contains
     procedure :: Init
     procedure :: BackgroundDensityAndPressure

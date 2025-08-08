@@ -11,8 +11,7 @@ class DarkEnergyModel(F2003Class):
     _fields_ = [
         ("__is_cosmological_constant", c_bool),
         ("__num_perturb_equations", c_int),
-        ("is_df_model", c_bool, "using the Dark Fluid model"),
-        ("omde_tot", c_double)
+        ("is_df_model", c_bool, "using the Dark Fluid model")
     ]
 
     def validate_params(self) -> None:
@@ -70,7 +69,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
             self.is_df_model = True
             Omega_c_eff = omch2_eff/(H0/100)**2
             Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation (photons and massless neutrinos), but that would make tiny difference.
-            self.omde_tot = omch2_eff + Omega_DE_eff*(H0/100)**2
 
             self.a = np.logspace(-7,0,500)
             w_de = w+wa*(1-self.a)
@@ -159,7 +157,6 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
 def update_DF_model(pars, H0):
     Omega_c_eff = pars.omch2_eff/(H0/100)**2
     Omega_DE_eff = 1-(pars.omch2_eff+pars.ombh2+pars.omnuh2)/(H0/100)**2
-    pars.DarkEnergy.omde_tot = pars.omch2_eff + Omega_DE_eff*(H0/100)**2
     w_de = pars.DF_w0+pars.DF_wa*(1-pars.DF_a)
     Omega_DE = Omega_DE_eff*np.exp(-3*pars.DF_wa*(1-pars.DF_a))*pars.DF_a**(-3*(1+pars.DF_w0+pars.DF_wa))
     Omega_DM = Omega_c_eff/pars.DF_a**3

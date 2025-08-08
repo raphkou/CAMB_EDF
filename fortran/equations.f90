@@ -2036,7 +2036,7 @@
     if (.not. CP%DarkEnergy%is_df_model) then
         omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
     else
-        omtau = tau*(State%grhob+State%grhov)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
+        omtau = tau*(State%grhob+State%grhov*CP%DarkEnergy%grho_de(1e-7_dl)/1e-7_dl)/sqrt(3*(State%grhog+rhomass+State%grhornomass))
     end if
     a=tau*State%adotrad*(1+omtau/4)
 
@@ -2098,7 +2098,7 @@
     if (.not. CP%DarkEnergy%is_df_model) then
         omtau = tau*(State%grhob+State%grhoc)/sqrt(3*(State%grhog+State%grhornomass))
     else
-        omtau = tau*(State%grhob+State%grhov)/sqrt(3*(State%grhog+State%grhornomass))
+        omtau = tau*(State%grhob+State%grhov*CP%DarkEnergy%grho_de(1e-7_dl)/1e-7_dl)/sqrt(3*(State%grhog+State%grhornomass))
     end if
 
     a=tau*State%adotrad*(1+omtau/4)

@@ -209,7 +209,6 @@
         this%num_perturb_equations = 2
         
         this%is_df_model = .false.
-        this%omde_tot = 0.d0
         
         if (this%w_n < 0.9999) then
             ! n <> infinity
