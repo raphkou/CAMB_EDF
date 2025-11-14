@@ -65,7 +65,7 @@ class DarkEnergyEqnOfState(DarkEnergyModel):
         self.cs2 = cs2
 
         if (is_df_model == True):
-            self.cs2=0
+            #self.cs2=0
             self.is_df_model = True
             Omega_c_eff = omch2_eff/(H0/100)**2
             Omega_DE_eff = 1-(omch2_eff+ombh2+omnuh2)/(H0/100)**2 #This doesn't take into account radiation (photons and massless neutrinos), but that would make tiny difference.

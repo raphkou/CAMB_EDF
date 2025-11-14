@@ -2219,7 +2219,11 @@
     clxb=ay(ix_clxb)
     vb=ay(ix_vb)
     
-    clxv = ay(EV%w_ix)
+    if (State%CP%DarkEnergy%num_perturb_equations > 0) then
+        clxv = ay(EV%w_ix)
+    else
+        clxv = 0._dl
+    end if
     !  Compute expansion rate from: grho 8*pi*rho*a**2
 
     grhob_t=State%grhob/a
@@ -2728,7 +2732,11 @@
 
         if (associated(EV%OutputTransfer)) then
             EV%OutputTransfer(Transfer_kh) = k/(State%CP%h0/100._dl)
-            EV%OutputTransfer(Transfer_cdm) = clxc
+            if (CP%DarkEnergy%is_df_model) then
+                EV%OutputTransfer(Transfer_cdm) = (clxc*grhoc_t+grhov_t*clxv)/(grhoc_t+grhov_t)
+            else
+                EV%OutputTransfer(Transfer_cdm) = clxc
+            end if
             EV%OutputTransfer(Transfer_b) = clxb
             EV%OutputTransfer(Transfer_g) = clxg
             EV%OutputTransfer(Transfer_r) = clxr
